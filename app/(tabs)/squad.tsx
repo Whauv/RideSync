@@ -1,8 +1,8 @@
-import { StyleSheet, View } from "react-native";
+import { StyleSheet } from "react-native";
 
-import { AppText } from "@/components/core/AppText";
-import { Screen } from "@/components/core/Screen";
-import { Surface } from "@/components/core/Surface";
+import { AppHeader } from "@/components/primitives/AppHeader";
+import { Screen } from "@/components/primitives/Screen";
+import { Surface } from "@/components/primitives/Surface";
 import { RiderRow } from "@/components/ride/RiderRow";
 import { useAppStore } from "@/store/useAppStore";
 
@@ -11,12 +11,12 @@ export default function SquadScreen() {
 
   return (
     <Screen scroll>
-      <View style={styles.header}>
-        <AppText variant="title">Rider roster</AppText>
-        <AppText tone="muted">Role-aware presence, voice status, and at-a-glance ride health.</AppText>
-      </View>
-
-      <Surface>
+      <AppHeader
+        eyebrow="SQUAD"
+        subtitle="Compact presence, role context, and ride health for every rider currently in the room."
+        title="Roster"
+      />
+      <Surface style={styles.roster}>
         {riders.map((rider) => (
           <RiderRow key={rider.id} rider={rider} />
         ))}
@@ -26,8 +26,7 @@ export default function SquadScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: {
-    gap: 6,
-    marginVertical: 18
+  roster: {
+    paddingHorizontal: 16
   }
 });

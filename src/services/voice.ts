@@ -5,7 +5,7 @@ export interface VoiceProviderAdapter {
 }
 
 class LiveKitAdapter implements VoiceProviderAdapter {
-  provider: "livekit" = "livekit";
+  provider = "livekit" as const;
 
   async connect(_roomId: string) {
     return Promise.resolve();

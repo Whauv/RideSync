@@ -1,23 +1,30 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { router } from "expo-router";
 
-import { AppText } from "@/components/core/AppText";
-import { PrimaryButton } from "@/components/core/PrimaryButton";
-import { Screen } from "@/components/core/Screen";
-import { Surface } from "@/components/core/Surface";
-import { StateBanner } from "@/components/feedback/StateBanner";
+import { AppHeader } from "@/components/primitives/AppHeader";
+import { AppText } from "@/components/primitives/AppText";
+import { BottomSheet } from "@/components/primitives/BottomSheet";
+import { Button } from "@/components/primitives/Button";
+import { Chip } from "@/components/primitives/Chip";
+import { IconButton } from "@/components/primitives/IconButton";
+import { ListRow } from "@/components/primitives/ListRow";
+import { Screen } from "@/components/primitives/Screen";
+import { Surface } from "@/components/primitives/Surface";
 import { MapPreview } from "@/components/ride/MapPreview";
 import { useTheme } from "@/design/ThemeProvider";
 import { useRoomSnapshot } from "@/features/rooms/useRoomSnapshot";
+import { useToast } from "@/providers/ToastProvider";
 import { useAppStore } from "@/store/useAppStore";
 
 export default function RideScreen() {
   const theme = useTheme();
+  const { showToast } = useToast();
   const { data, isLoading } = useRoomSnapshot();
   const joinRoom = useAppStore((state) => state.joinRoom);
-  const leaderMusic = useAppStore((state) => state.leaderMusic);
   const activeRoom = useAppStore((state) => state.activeRoom);
+  const leaderMusic = useAppStore((state) => state.leaderMusic);
+  const [showActions, setShowActions] = useState(false);
 
   useEffect(() => {
     if (data && !activeRoom) {
@@ -30,7 +37,7 @@ export default function RideScreen() {
       <Screen>
         <View style={styles.loader}>
           <ActivityIndicator color={theme.colors.accent} />
-          <AppText tone="muted">Loading ride room…</AppText>
+          <AppText tone="secondary">Loading live ride shell…</AppText>
         </View>
       </Screen>
     );
@@ -38,58 +45,66 @@ export default function RideScreen() {
 
   return (
     <Screen scroll>
-      <View style={styles.header}>
-        <View>
-          <AppText variant="caption" tone="accent">
-            LIVE ROOM {data.room.code}
-          </AppText>
-          <AppText variant="title">{data.room.title}</AppText>
-          <AppText tone="muted">
-            {data.room.destination} · ETA {data.room.etaMinutes} min
-          </AppText>
-        </View>
-        <View style={[styles.voicePill, { backgroundColor: theme.colors.accentSoft }]}>
-          <MaterialCommunityIcons name="microphone-wireless" size={16} color={theme.colors.accent} />
-          <AppText variant="caption">Voice live</AppText>
-        </View>
-      </View>
+      <AppHeader
+        eyebrow={`ROOM ${data.room.code}`}
+        right={<IconButton icon="dots-horizontal" onPress={() => router.push("/modal")} />}
+        subtitle={`${data.room.destination} · ETA ${data.room.etaMinutes} min · ${data.room.riderCount} riders`}
+        title={data.room.title}
+      />
 
       <MapPreview riders={data.riders} />
 
       <View style={styles.metricsRow}>
-        <Surface style={styles.metricCard}>
-          <AppText variant="caption" tone="soft">
-            Group speed
+        <Surface raised style={styles.metricCard}>
+          <AppText tone="secondary" variant="footnote">
+            Group pace
           </AppText>
           <AppText variant="metric">67</AppText>
-          <AppText tone="muted">Cruise steady</AppText>
+          <Chip label="Stable" tone="success" />
         </Surface>
-        <Surface style={styles.metricCard} muted>
-          <AppText variant="caption" tone="soft">
-            Ride status
+        <Surface style={styles.metricCard}>
+          <AppText tone="secondary" variant="footnote">
+            Ride state
           </AppText>
-          <AppText variant="title">Rolling</AppText>
-          <AppText tone="muted">2 riders need fuel soon</AppText>
+          <AppText variant="title2">Rolling</AppText>
+          <AppText tone="secondary" variant="callout">
+            Tail confirms full pack through latest split.
+          </AppText>
         </Surface>
       </View>
 
-      <Surface>
-        <View style={styles.musicHeader}>
-          <View>
-            <AppText variant="caption" tone="soft">
-              Leader sync playback
-            </AppText>
-            <AppText variant="title">{leaderMusic.track}</AppText>
-            <AppText tone="muted">{leaderMusic.artist}</AppText>
-          </View>
-          <PrimaryButton label={leaderMusic.isPlaying ? "Pause Group" : "Resume Group"} />
+      <Surface style={styles.panel}>
+        <AppText tone="secondary" variant="footnote">
+          Leader playback
+        </AppText>
+        <AppText variant="title2">{leaderMusic.track}</AppText>
+        <AppText tone="secondary">{leaderMusic.artist}</AppText>
+        <View style={styles.row}>
+          <Button
+            label={leaderMusic.isPlaying ? "Pause group" : "Resume group"}
+            onPress={() => showToast({ title: "Music sync updated", message: "Leader transport state broadcast to riders.", tone: "success" })}
+            variant="secondary"
+          />
+          <Button label="Ride actions" onPress={() => setShowActions(true)} />
         </View>
       </Surface>
 
-      <StateBanner
-        title="Offline resilience"
-        body="Last good telemetry is cached locally. Riders degrade to stale state before disconnecting."
-      />
+      <Surface muted style={styles.panel}>
+        <ListRow
+          chevron
+          leading={<Chip label="Connectivity" tone="success" />}
+          onPress={() => showToast({ title: "Network healthy", message: "Voice and presence round-trip are within target.", tone: "success" })}
+          subtitle="Foreground sync, telemetry cache, and voice reconnect policies are configured."
+          title="Operational status"
+        />
+      </Surface>
+
+      <BottomSheet onClose={() => setShowActions(false)} visible={showActions}>
+        <AppText variant="title2">Live ride actions</AppText>
+        <Button label="Regroup at next turnout" variant="secondary" />
+        <Button label="Mark hazard ahead" variant="secondary" />
+        <Button label="Send fuel ping" variant="secondary" />
+      </BottomSheet>
     </Screen>
   );
 }
@@ -101,33 +116,24 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 12
   },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginVertical: 18
-  },
-  voicePill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8
-  },
   metricsRow: {
     flexDirection: "row",
     gap: 12,
-    marginTop: 12,
-    marginBottom: 12
+    marginTop: 12
   },
   metricCard: {
-    flex: 1
+    flex: 1,
+    padding: 16,
+    gap: 6
   },
-  musicHeader: {
+  panel: {
+    padding: 16,
+    marginTop: 12,
+    gap: 8
+  },
+  row: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 16
+    gap: 10,
+    marginTop: 8
   }
 });
