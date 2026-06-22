@@ -15,13 +15,13 @@ import { Surface } from "@/components/primitives/Surface";
 import { TextField } from "@/components/primitives/TextField";
 import { LobbyMemberRow } from "@/components/room/LobbyMemberRow";
 import { RoomInviteCard } from "@/components/room/RoomInviteCard";
-import { MapPreview } from "@/components/ride/MapPreview";
+import { LiveRideMap } from "@/components/ride/LiveRideMap";
+import { useSimulatedRideStream } from "@/features/ride-map/useSimulatedRideStream";
 import { useToast } from "@/providers/ToastProvider";
 import {
   approveRoomMember,
   clearActiveRideRoom,
   createRideRoom,
-  getRideRoomSnapshot,
   joinRideRoom,
   removeRoomMember,
   setRoomLocked,
@@ -45,11 +45,12 @@ export default function RideScreen() {
   const activeRoom = useAppStore((state) => state.activeRoom);
   const roomMembers = useAppStore((state) => state.roomMembers);
   const riders = useAppStore((state) => state.riders);
+  const rideLayers = useAppStore((state) => state.rideLayers);
   const leaderMusic = useAppStore((state) => state.leaderMusic);
   const roomPresenceState = useAppStore((state) => state.roomPresenceState);
   const setRoomPresenceState = useAppStore((state) => state.setRoomPresenceState);
   const setRoomSession = useAppStore((state) => state.setRoomSession);
-  const clearRoomSession = useAppStore((state) => state.clearRoomSession);
+  const setRiders = useAppStore((state) => state.setRiders);
 
   const [entryMode, setEntryMode] = useState<EntryMode>("create");
   const [busy, setBusy] = useState(false);
@@ -67,6 +68,13 @@ export default function RideScreen() {
   const approvedCount = roomMembers.filter((member) => member.approvalStatus === "approved").length;
   const pendingCount = roomMembers.filter((member) => member.approvalStatus === "pending").length;
   const readyCount = roomMembers.filter((member) => member.readiness === "ready" && member.approvalStatus === "approved").length;
+
+  useSimulatedRideStream({
+    enabled: activeRoom?.lifecycle === "rolling",
+    riders,
+    degraded: roomPresenceState !== "connected",
+    onTick: setRiders
+  });
 
   useEffect(() => {
     if (pendingJoinCode) {
@@ -89,7 +97,7 @@ export default function RideScreen() {
       setRoomPresenceState(nextPresence);
 
       const snapshot = await updateRoomMemberPresence(activeRoom.id, authIdentity.uid, nextPresence);
-      setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.messages);
+      setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages);
     });
 
     return () => subscription.remove();
@@ -122,7 +130,7 @@ export default function RideScreen() {
         authIdentity,
         profile
       );
-      setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.messages);
+      setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages);
       showToast({
         title: "Room created",
         message: `${snapshot.room.title} is ready for riders to join.`,
@@ -148,7 +156,7 @@ export default function RideScreen() {
 
     try {
       const snapshot = await joinRideRoom({ value: joinValue }, authIdentity, profile);
-      setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.messages);
+      setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages);
       setPendingJoinCode(null);
       showToast({
         title: "Room joined",
@@ -183,7 +191,7 @@ export default function RideScreen() {
     }
 
     const snapshot = await action();
-    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.messages);
+    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages);
   }
 
   async function handleStartRide() {
@@ -192,7 +200,7 @@ export default function RideScreen() {
     }
 
     const snapshot = await startRideRoom(activeRoom.id);
-    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.messages);
+    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages);
     showToast({
       title: "Ride started",
       message: "The room moved from lobby to live ride mode.",
@@ -294,7 +302,7 @@ export default function RideScreen() {
           title={activeRoom.title}
         />
 
-        <MapPreview riders={riders} />
+        <LiveRideMap layers={rideLayers} riders={riders} room={activeRoom} />
 
         <View style={styles.metricsRow}>
           <Surface raised style={styles.metricCard}>

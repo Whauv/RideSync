@@ -7,6 +7,9 @@ export type MemberApprovalStatus = "approved" | "pending";
 export type MemberReadiness = "ready" | "review";
 export type PresenceState = "connected" | "reconnecting" | "offline";
 export type IntercomState = "connected" | "not_connected";
+export type RiderSignalState = "strong" | "moderate" | "weak";
+export type RideLayerType = "regroup" | "hazard" | "fuel" | "emergency";
+export type RideMapMode = "day" | "night" | "focus";
 
 export interface RiderPresence {
   id: string;
@@ -19,6 +22,17 @@ export interface RiderPresence {
   isTalking: boolean;
   hasMusicSync: boolean;
   batteryPct: number;
+  signalState: RiderSignalState;
+  lastUpdatedAt: string;
+  lat: number;
+  lng: number;
+}
+
+export interface RideLayerMarker {
+  id: string;
+  type: RideLayerType;
+  title: string;
+  subtitle: string;
   lat: number;
   lng: number;
 }
@@ -81,6 +95,7 @@ export interface RideRoomSnapshot {
   room: RideRoom;
   members: RoomMember[];
   riders: RiderPresence[];
+  layers: RideLayerMarker[];
   messages: RideMessage[];
 }
 
