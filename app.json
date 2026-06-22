@@ -17,7 +17,8 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "RideSync uses your location to keep your group coordinated in real time.",
-        "NSMicrophoneUsageDescription": "RideSync uses your microphone for live rider voice communication."
+        "NSMicrophoneUsageDescription": "RideSync uses your microphone for live rider voice communication.",
+        "NSUserNotificationUsageDescription": "RideSync sends operational ride alerts, regroup notices, and SOS escalations."
       }
     },
     "android": {
@@ -27,12 +28,14 @@
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
-        "RECORD_AUDIO"
+        "RECORD_AUDIO",
+        "POST_NOTIFICATIONS"
       ]
     },
     "plugins": [
       "expo-router",
-      "expo-location"
+      "expo-location",
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true

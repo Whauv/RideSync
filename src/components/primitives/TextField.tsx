@@ -11,10 +11,21 @@ interface TextFieldProps {
   onChangeText: (value: string) => void;
   placeholder?: string;
   helperText?: string;
+  errorText?: string;
   leadingIcon?: keyof typeof MaterialCommunityIcons.glyphMap;
   trailing?: ReactNode;
   secureTextEntry?: boolean;
   keyboardType?: "default" | "email-address" | "numeric";
+  autoCapitalize?: "none" | "sentences" | "words" | "characters";
+  autoCorrect?: boolean;
+  textContentType?:
+    | "none"
+    | "name"
+    | "emailAddress"
+    | "telephoneNumber"
+    | "password"
+    | "username"
+    | "nickname";
 }
 
 export function TextField({
@@ -23,10 +34,14 @@ export function TextField({
   onChangeText,
   placeholder,
   helperText,
+  errorText,
   leadingIcon,
   trailing,
   secureTextEntry,
-  keyboardType = "default"
+  keyboardType = "default",
+  autoCapitalize = "sentences",
+  autoCorrect = false,
+  textContentType
 }: TextFieldProps) {
   const theme = useTheme();
 
@@ -38,17 +53,24 @@ export function TextField({
       <View style={[styles.field, { backgroundColor: theme.colors.surface, borderColor: theme.colors.lineSubtle }]}>
         {leadingIcon ? <MaterialCommunityIcons color={theme.colors.textTertiary} name={leadingIcon} size={18} /> : null}
         <TextInput
+          autoCapitalize={autoCapitalize}
+          autoCorrect={autoCorrect}
           keyboardType={keyboardType}
           onChangeText={onChangeText}
           placeholder={placeholder}
           placeholderTextColor={theme.colors.textTertiary}
           secureTextEntry={secureTextEntry}
           style={[styles.input, { color: theme.colors.textPrimary }]}
+          textContentType={textContentType}
           value={value}
         />
         {trailing ? <Pressable>{trailing}</Pressable> : null}
       </View>
-      {helperText ? (
+      {errorText ? (
+        <AppText style={{ color: theme.colors.danger }} variant="footnote">
+          {errorText}
+        </AppText>
+      ) : helperText ? (
         <AppText variant="footnote" tone="tertiary">
           {helperText}
         </AppText>

@@ -1,10 +1,23 @@
-import { Tabs } from "expo-router";
+import { Redirect, Tabs } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { useTheme } from "@/design/ThemeProvider";
+import { hasCorePermissions, isProfileComplete, useAppStore } from "@/store/useAppStore";
 
 export default function TabsLayout() {
   const theme = useTheme();
+  const authBootstrapped = useAppStore((state) => state.authBootstrapped);
+  const authIdentity = useAppStore((state) => state.authIdentity);
+  const profile = useAppStore((state) => state.profile);
+  const permissions = useAppStore((state) => state.permissions);
+
+  if (!authBootstrapped) {
+    return null;
+  }
+
+  if (!authIdentity || !isProfileComplete(profile) || !hasCorePermissions(permissions)) {
+    return <Redirect href="/" />;
+  }
 
   return (
     <Tabs
