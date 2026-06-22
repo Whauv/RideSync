@@ -55,7 +55,7 @@ export default function SettingsScreen() {
           chevron
           leading={<Chip label="Provider" tone="neutral" />}
           onPress={() => setShowProviderModal(true)}
-          subtitle="LiveKit-first voice abstraction and transport-safe playback model."
+          subtitle="LiveKit-first voice abstraction and metadata-sync playback model with provider policy guardrails."
           title="Provider stack"
         />
         <ListRow
@@ -72,8 +72,9 @@ export default function SettingsScreen() {
 
       <AppModal onClose={() => setShowProviderModal(false)} title="Provider stack" visible={showProviderModal}>
         <AppText tone="secondary">
-          RideSync is configured around a LiveKit-first voice adapter, Firebase-backed room state, and a best-effort
-          synchronized playback contract rather than app-owned streaming.
+          RideSync is configured around a LiveKit-first voice adapter, Firebase-backed room state, and a timestamp-based
+          playback sync contract. Simulation is legal-safe by default; provider-owned media playback only activates through
+          licensed adapter integrations.
         </AppText>
         <Button label="Understood" onPress={() => setShowProviderModal(false)} />
       </AppModal>

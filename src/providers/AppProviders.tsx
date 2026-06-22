@@ -6,6 +6,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthBootstrap } from "@/providers/AuthBootstrap";
 import { ThemeProvider } from "@/design/ThemeProvider";
 import { NotificationBootstrap } from "@/features/coordination/NotificationBootstrap";
+import { MusicBootstrap } from "@/features/music/MusicBootstrap";
 import { VoiceBootstrap } from "@/features/voice/VoiceBootstrap";
 import { ToastProvider } from "@/providers/ToastProvider";
 
@@ -30,7 +31,9 @@ export function AppProviders({ children }: PropsWithChildren) {
             <NotificationBootstrap>
               <ToastProvider>
                 <AuthBootstrap>
-                  <VoiceBootstrap>{children}</VoiceBootstrap>
+                  <VoiceBootstrap>
+                    <MusicBootstrap>{children}</MusicBootstrap>
+                  </VoiceBootstrap>
                 </AuthBootstrap>
               </ToastProvider>
             </NotificationBootstrap>
