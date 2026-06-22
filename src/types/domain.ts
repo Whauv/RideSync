@@ -1,6 +1,12 @@
 export type RideStatus = "staged" | "rolling" | "fuel" | "hazard" | "offline";
 
 export type RiderRole = "leader" | "tail" | "rider";
+export type RoomPrivacyMode = "invite_only" | "approval_required";
+export type RoomLifecycle = "lobby" | "rolling";
+export type MemberApprovalStatus = "approved" | "pending";
+export type MemberReadiness = "ready" | "review";
+export type PresenceState = "connected" | "reconnecting" | "offline";
+export type IntercomState = "connected" | "not_connected";
 
 export interface RiderPresence {
   id: string;
@@ -21,13 +27,41 @@ export interface RideRoom {
   id: string;
   code: string;
   title: string;
-  destination: string;
+  routeTitle?: string;
   leaderId: string;
-  startedAt: string;
+  privacyMode: RoomPrivacyMode;
+  maxRiders: number;
+  locked: boolean;
+  lifecycle: RoomLifecycle;
+  inviteLink: string;
+  createdAt: string;
+  startedAt?: string;
   riderCount: number;
   voiceProvider: "livekit" | "agora";
-  musicTrack: string;
-  etaMinutes: number;
+  musicTrack?: string;
+  etaMinutes?: number;
+}
+
+export interface RoomMember {
+  id: string;
+  userId: string;
+  riderName: string;
+  avatarInitials: string;
+  bikeName: string;
+  role: RiderRole;
+  approvalStatus: MemberApprovalStatus;
+  readiness: MemberReadiness;
+  presenceState: PresenceState;
+  intercomState: IntercomState;
+  joinedAt: string;
+  lastSeenAt: string;
+}
+
+export interface CreateRoomInput {
+  roomName: string;
+  privacyMode: RoomPrivacyMode;
+  routeTitle?: string;
+  maxRiders: number;
 }
 
 export interface RideMessage {
@@ -40,8 +74,14 @@ export interface RideMessage {
 }
 
 export interface RoomJoinPayload {
-  code: string;
-  displayName: string;
+  value: string;
+}
+
+export interface RideRoomSnapshot {
+  room: RideRoom;
+  members: RoomMember[];
+  riders: RiderPresence[];
+  messages: RideMessage[];
 }
 
 export interface LeaderMusicState {

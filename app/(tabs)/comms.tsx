@@ -3,13 +3,32 @@ import { StyleSheet, View } from "react-native";
 import { AppHeader } from "@/components/primitives/AppHeader";
 import { Button } from "@/components/primitives/Button";
 import { Chip } from "@/components/primitives/Chip";
+import { EmptyState } from "@/components/primitives/EmptyState";
 import { ListRow } from "@/components/primitives/ListRow";
 import { Screen } from "@/components/primitives/Screen";
 import { Surface } from "@/components/primitives/Surface";
 import { useAppStore } from "@/store/useAppStore";
 
 export default function CommsScreen() {
+  const activeRoom = useAppStore((state) => state.activeRoom);
   const messages = useAppStore((state) => state.messages);
+
+  if (!activeRoom) {
+    return (
+      <Screen>
+        <AppHeader
+          eyebrow="COORDINATION"
+          subtitle="Room messaging and quick actions become active once you create or join a lobby."
+          title="Comms"
+        />
+        <EmptyState
+          body="Create or join a ride room first to unlock the coordination feed."
+          icon="radio-handheld"
+          title="No room active"
+        />
+      </Screen>
+    );
+  }
 
   return (
     <Screen scroll>
