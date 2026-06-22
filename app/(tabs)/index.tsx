@@ -5,6 +5,9 @@ import { router } from "expo-router";
 import { ActiveAlertBanner } from "@/components/coordination/ActiveAlertBanner";
 import { QuickActionsTray } from "@/components/coordination/QuickActionsTray";
 import { SOSModal } from "@/components/coordination/SOSModal";
+import { LeaderMusicPanel } from "@/components/music/LeaderMusicPanel";
+import { MusicSyncDiagnostics } from "@/components/music/MusicSyncDiagnostics";
+import { RiderPlaybackPanel } from "@/components/music/RiderPlaybackPanel";
 import { AppHeader } from "@/components/primitives/AppHeader";
 import { AppText } from "@/components/primitives/AppText";
 import { Button } from "@/components/primitives/Button";
@@ -40,6 +43,7 @@ import {
   updateRoomMemberReadiness
 } from "@/services/roomWorkflow";
 import { voiceAdapter } from "@/services/voice";
+import { musicSyncAdapter } from "@/services/musicSync";
 import { useAppStore } from "@/store/useAppStore";
 import { RideRoomSnapshot, RoomPrivacyMode } from "@/types/domain";
 
@@ -56,7 +60,7 @@ export default function RideScreen() {
   const riders = useAppStore((state) => state.riders);
   const rideLayers = useAppStore((state) => state.rideLayers);
   const messages = useAppStore((state) => state.messages);
-  const leaderMusic = useAppStore((state) => state.leaderMusic);
+  const musicSync = useAppStore((state) => state.musicSync);
   const roomPresenceState = useAppStore((state) => state.roomPresenceState);
   const permissions = useAppStore((state) => state.permissions);
   const voiceSession = useAppStore((state) => state.voiceSession);
@@ -283,6 +287,31 @@ export default function RideScreen() {
     setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert);
   }
 
+  async function handleMusicPlayPause() {
+    if (musicSync.playbackState === "playing") {
+      await musicSyncAdapter.pause();
+      return;
+    }
+
+    await musicSyncAdapter.play();
+  }
+
+  async function handleMusicNext() {
+    await musicSyncAdapter.skipNext();
+  }
+
+  async function handleMusicPrevious() {
+    await musicSyncAdapter.skipPrevious();
+  }
+
+  async function handleMusicResync() {
+    await musicSyncAdapter.resyncNow();
+  }
+
+  function handleMixDelta(delta: number) {
+    musicSyncAdapter.setLocalMixPct(musicSync.localMixPct + delta);
+  }
+
   if (!activeRoom) {
     return (
       <Screen scroll>
@@ -411,14 +440,31 @@ export default function RideScreen() {
           </Surface>
           <Surface style={styles.metricCard}>
             <AppText tone="secondary" variant="footnote">
-              Playback
+              Playback authority
             </AppText>
-            <AppText variant="title2">{leaderMusic.track}</AppText>
+            <AppText variant="title2">{musicSync.canControl ? "Leader device" : "Leader remote"}</AppText>
             <AppText tone="secondary" variant="callout">
-              {leaderMusic.artist}
+              {musicSync.provider} | {musicSync.transportMode}
             </AppText>
           </Surface>
         </View>
+
+        {isLeaderView ? (
+          <LeaderMusicPanel
+            onPlayPause={handleMusicPlayPause}
+            onSkipNext={handleMusicNext}
+            onSkipPrevious={handleMusicPrevious}
+            snapshot={musicSync}
+          />
+        ) : (
+          <RiderPlaybackPanel
+            onMixDown={() => handleMixDelta(-8)}
+            onMixUp={() => handleMixDelta(8)}
+            snapshot={musicSync}
+          />
+        )}
+
+        <MusicSyncDiagnostics onResync={handleMusicResync} snapshot={musicSync} />
 
         <Surface style={styles.panel}>
           <ListRow
@@ -501,6 +547,23 @@ export default function RideScreen() {
         onToggleMute={handleToggleMute}
         voiceSession={voiceSession}
       />
+
+      {isLeaderView ? (
+        <LeaderMusicPanel
+          onPlayPause={handleMusicPlayPause}
+          onSkipNext={handleMusicNext}
+          onSkipPrevious={handleMusicPrevious}
+          snapshot={musicSync}
+        />
+      ) : (
+        <RiderPlaybackPanel
+          onMixDown={() => handleMixDelta(-8)}
+          onMixUp={() => handleMixDelta(8)}
+          snapshot={musicSync}
+        />
+      )}
+
+      <MusicSyncDiagnostics onResync={handleMusicResync} snapshot={musicSync} />
 
       <QuickActionsTray
         onOpenComms={() => router.push("/(tabs)/comms")}

@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 
 import { AuthIdentity, PermissionState, RiderProfile } from "@/types/auth";
 import { LeaderMusicState, PresenceState, RideAlertState, RideLayerMarker, RideMessage, RideRoom, RiderPresence, RoomMember } from "@/types/domain";
+import { MusicSyncSnapshot } from "@/types/music";
 import { VoiceParticipantState, VoiceSessionSnapshot } from "@/types/voice";
 
 type ThemeMode = "system" | "light" | "dark";
@@ -33,6 +34,43 @@ const seededMusic: LeaderMusicState = {
   track: "Northern Pass",
   artist: "Signal / Line",
   elapsedSeconds: 96
+};
+
+const defaultMusicSync: MusicSyncSnapshot = {
+  provider: "simulation",
+  transportMode: "metadata_sync",
+  roomId: null,
+  leaderUserId: null,
+  localUserId: null,
+  canControl: false,
+  queue: [
+    {
+      id: "track-northern-pass",
+      title: "Northern Pass",
+      artist: "Signal / Line",
+      album: "Open Asphalt",
+      durationMs: 248000,
+      artworkToken: "northern-pass",
+      sourceType: "simulation"
+    }
+  ],
+  currentIndex: 0,
+  currentTrackId: "track-northern-pass",
+  playbackState: "paused",
+  elapsedMs: 96000,
+  anchorEpochMs: null,
+  anchorPositionMs: 96000,
+  queueVersion: 1,
+  commandRevision: 0,
+  lastCommandAt: null,
+  syncHealth: "tight",
+  resyncState: "idle",
+  driftMs: 0,
+  deviceLagMs: 80,
+  lagCompensationMs: 0,
+  localMixPct: 72,
+  integrationReady: false,
+  constraintNote: "Simulation only until a licensed provider adapter is configured."
 };
 
 const defaultVoiceSession: VoiceSessionSnapshot = {
@@ -103,6 +141,7 @@ interface AppState {
   activeAlert: RideAlertState | null;
   messageReadAtByRoom: Record<string, string | null>;
   leaderMusic: LeaderMusicState;
+  musicSync: MusicSyncSnapshot;
   voiceSession: VoiceSessionSnapshot;
   voiceParticipants: Record<string, VoiceParticipantState>;
   setThemeMode: (themeMode: ThemeMode) => void;
@@ -127,6 +166,8 @@ interface AppState {
   setRoomPresenceState: (presenceState: PresenceState) => void;
   setRiders: (riders: RiderPresence[]) => void;
   markRoomMessagesRead: (roomId: string, lastReadAt?: string) => void;
+  setMusicSyncSnapshot: (snapshot: MusicSyncSnapshot) => void;
+  resetMusicSync: () => void;
   setVoiceSnapshot: (
     voiceSession: VoiceSessionSnapshot,
     voiceParticipants: Record<string, VoiceParticipantState>
@@ -155,6 +196,7 @@ export const useAppStore = create<AppState>()(
       activeAlert: null,
       messageReadAtByRoom: {},
       leaderMusic: seededMusic,
+      musicSync: defaultMusicSync,
       voiceSession: defaultVoiceSession,
       voiceParticipants: {},
       setThemeMode: (themeMode) => set({ themeMode }),
@@ -217,6 +259,8 @@ export const useAppStore = create<AppState>()(
             [roomId]: lastReadAt ?? new Date().toISOString()
           }
         })),
+      setMusicSyncSnapshot: (musicSync) => set({ musicSync }),
+      resetMusicSync: () => set({ musicSync: defaultMusicSync }),
       setVoiceSnapshot: (voiceSession, voiceParticipants) =>
         set({
           voiceSession,
@@ -242,6 +286,7 @@ export const useAppStore = create<AppState>()(
           messages: [],
           activeAlert: null,
           permissions: defaultPermissions,
+          musicSync: defaultMusicSync,
           voiceSession: defaultVoiceSession,
           voiceParticipants: {},
           messageReadAtByRoom: {}
