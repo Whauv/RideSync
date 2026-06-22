@@ -1,16 +1,20 @@
 import { StyleSheet, View } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { AppText } from "@/components/primitives/AppText";
 import { Avatar } from "@/components/primitives/Avatar";
 import { Button } from "@/components/primitives/Button";
 import { Chip } from "@/components/primitives/Chip";
 import { Surface } from "@/components/primitives/Surface";
+import { useTheme } from "@/design/ThemeProvider";
 import { RoomMember } from "@/types/domain";
+import { VoiceParticipantState } from "@/types/voice";
 
 interface LobbyMemberRowProps {
   member: RoomMember;
   isLeaderView: boolean;
   isCurrentUser: boolean;
+  voiceParticipant?: VoiceParticipantState;
   onApprove?: () => void;
   onRemove?: () => void;
   onToggleReady?: () => void;
@@ -21,14 +25,24 @@ export function LobbyMemberRow({
   member,
   isLeaderView,
   isCurrentUser,
+  voiceParticipant,
   onApprove,
   onRemove,
   onToggleReady,
   onToggleIntercom
 }: LobbyMemberRowProps) {
+  const theme = useTheme();
   const readinessTone = member.readiness === "ready" ? "success" : "neutral";
   const presenceTone =
     member.presenceState === "connected" ? "success" : member.presenceState === "reconnecting" ? "warning" : "danger";
+  const voiceTone =
+    voiceParticipant?.networkQuality === "poor"
+      ? "warning"
+      : voiceParticipant?.isSpeaking
+        ? "accent"
+        : voiceParticipant?.isMuted
+          ? "neutral"
+          : "success";
 
   return (
     <Surface muted style={styles.card}>
@@ -53,13 +67,39 @@ export function LobbyMemberRow({
       </View>
 
       <View style={styles.statusRow}>
-        <AppText tone="secondary" variant="footnote">
-          Intercom {member.intercomState === "connected" ? "connected" : "not connected"}
-        </AppText>
+        <View style={styles.voiceStatus}>
+          <MaterialCommunityIcons
+            color={
+              voiceParticipant?.isSpeaking
+                ? theme.colors.accent
+                : voiceParticipant?.networkQuality === "poor"
+                  ? theme.colors.warning
+                  : theme.colors.textTertiary
+            }
+            name={voiceParticipant?.isSpeaking ? "microphone" : voiceParticipant?.isMuted ? "microphone-off" : "waveform"}
+            size={16}
+          />
+          <AppText tone="secondary" variant="footnote">
+            {member.intercomState === "connected"
+              ? voiceParticipant?.isSpeaking
+                ? "Speaking now"
+                : voiceParticipant?.networkQuality === "poor"
+                  ? "Voice network weak"
+                  : "Voice linked"
+              : "Intercom not connected"}
+          </AppText>
+        </View>
         <AppText tone="secondary" variant="footnote">
           Last seen {new Date(member.lastSeenAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
         </AppText>
       </View>
+
+      {voiceParticipant ? (
+        <View style={styles.voiceChips}>
+          <Chip label={voiceParticipant.isSpeaking ? "Speaking" : voiceParticipant.isMuted ? "Muted" : "Listening"} tone={voiceTone} />
+          <Chip label={voiceParticipant.networkQuality} tone={voiceParticipant.networkQuality === "poor" ? "warning" : "neutral"} />
+        </View>
+      ) : null}
 
       <View style={styles.actions}>
         {isLeaderView && member.approvalStatus === "pending" ? (
@@ -118,6 +158,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     gap: 12
+  },
+  voiceStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6
+  },
+  voiceChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
   },
   actions: {
     gap: 8

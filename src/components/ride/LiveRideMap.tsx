@@ -8,13 +8,22 @@ import { BottomSheet } from "@/components/primitives/BottomSheet";
 import { Chip } from "@/components/primitives/Chip";
 import { SegmentedControl } from "@/components/primitives/SegmentedControl";
 import { Surface } from "@/components/primitives/Surface";
+import { VoiceControlBar } from "@/components/voice/VoiceControlBar";
 import { useTheme } from "@/design/ThemeProvider";
 import { RideLayerMarker, RideMapMode, RideRoom, RiderPresence } from "@/types/domain";
+import { VoiceParticipantState, VoiceSessionSnapshot } from "@/types/voice";
 
 interface LiveRideMapProps {
   room: RideRoom;
   riders: RiderPresence[];
   layers: RideLayerMarker[];
+  voiceSession: VoiceSessionSnapshot;
+  voiceParticipants: Record<string, VoiceParticipantState>;
+  canUseVoice: boolean;
+  isLeaderView?: boolean;
+  onToggleMute: () => void;
+  onRetryVoice: () => void;
+  onLeaderAnnounce: () => void;
 }
 
 function getMapStyle(themeMode: "light" | "dark", mapMode: RideMapMode, theme: ReturnType<typeof useTheme>) {
@@ -79,7 +88,18 @@ function layerIcon(type: RideLayerMarker["type"]) {
         : "map-marker-check";
 }
 
-export function LiveRideMap({ room, riders, layers }: LiveRideMapProps) {
+export function LiveRideMap({
+  room,
+  riders,
+  layers,
+  voiceSession,
+  voiceParticipants,
+  canUseVoice,
+  isLeaderView = false,
+  onToggleMute,
+  onRetryVoice,
+  onLeaderAnnounce
+}: LiveRideMapProps) {
   const theme = useTheme();
   const [mapMode, setMapMode] = useState<RideMapMode>("focus");
   const [selectedRiderId, setSelectedRiderId] = useState<string | null>(null);
@@ -171,6 +191,7 @@ export function LiveRideMap({ room, riders, layers }: LiveRideMapProps) {
           {riders.map((rider) => {
             const isLeader = rider.role === "leader";
             const isSelected = selectedRiderId === rider.id;
+            const voiceParticipant = voiceParticipants[rider.id];
 
             return (
               <Marker
@@ -188,6 +209,16 @@ export function LiveRideMap({ room, riders, layers }: LiveRideMapProps) {
                     }
                   ]}
                 >
+                  {voiceParticipant?.isSpeaking ? (
+                    <View
+                      style={[
+                        styles.speakingHalo,
+                        {
+                          borderColor: theme.colors.accent
+                        }
+                      ]}
+                    />
+                  ) : null}
                   <View
                     style={[
                       styles.riderMarker,
@@ -200,12 +231,40 @@ export function LiveRideMap({ room, riders, layers }: LiveRideMapProps) {
                       }
                     ]}
                   >
-                    <MaterialCommunityIcons
-                      color={isLeader ? theme.colors.textInverse : theme.colors.textPrimary}
-                      name={isLeader ? "navigation-variant" : "motorbike"}
-                      size={isLeader ? 18 : 15}
-                    />
-                  </View>
+                      <MaterialCommunityIcons
+                        color={isLeader ? theme.colors.textInverse : theme.colors.textPrimary}
+                        name={isLeader ? "navigation-variant" : "motorbike"}
+                        size={isLeader ? 18 : 15}
+                      />
+                    </View>
+                  {voiceParticipant ? (
+                    <View
+                      style={[
+                        styles.voiceBadge,
+                        {
+                          backgroundColor:
+                            voiceParticipant.networkQuality === "poor"
+                              ? theme.state.warning.fill
+                              : voiceParticipant.isSpeaking
+                                ? theme.colors.accentMuted
+                                : theme.colors.surfaceOverlay,
+                          borderColor: theme.colors.surfaceRaised
+                        }
+                      ]}
+                    >
+                      <MaterialCommunityIcons
+                        color={
+                          voiceParticipant.networkQuality === "poor"
+                            ? theme.colors.warning
+                            : voiceParticipant.isSpeaking
+                              ? theme.colors.accent
+                              : theme.colors.textSecondary
+                        }
+                        name={voiceParticipant.isSpeaking ? "microphone" : voiceParticipant.isMuted ? "microphone-off" : "waveform"}
+                        size={11}
+                      />
+                    </View>
+                  ) : null}
                   <View style={[styles.markerTail, { backgroundColor: isLeader ? theme.colors.mapLeader : theme.colors.surfaceRaised }]} />
                 </View>
               </Marker>
@@ -265,16 +324,32 @@ export function LiveRideMap({ room, riders, layers }: LiveRideMapProps) {
         </View>
 
         <View style={styles.bottomHud}>
-          <Surface raised style={styles.bottomCard}>
-            <View style={styles.bottomRow}>
-              <Chip label={leader?.signalState ?? "strong"} tone={leader?.signalState === "weak" ? "warning" : "success"} />
-              <Chip label={`${leader?.batteryPct ?? 80}% battery`} tone="neutral" />
-            </View>
-            <AppText variant="title3">Tap any rider marker for detail</AppText>
-            <AppText variant="footnote" tone="secondary">
-              Marker details, distance from leader, signal health, and last update time stay one step deeper.
-            </AppText>
-          </Surface>
+          <View style={styles.bottomHudStack}>
+            <Surface raised style={styles.bottomCard}>
+              <View style={styles.bottomRow}>
+                <Chip label={leader?.signalState ?? "strong"} tone={leader?.signalState === "weak" ? "warning" : "success"} />
+                <Chip label={`${leader?.batteryPct ?? 80}% battery`} tone="neutral" />
+                <Chip
+                  icon={voiceSession.selfMuted ? "microphone-off" : "microphone"}
+                  label={voiceSession.connectionState}
+                  tone={voiceSession.connectionState === "connected" ? "success" : "warning"}
+                />
+              </View>
+              <AppText variant="title3">Tap any rider marker for detail</AppText>
+              <AppText variant="footnote" tone="secondary">
+                Marker details, distance from leader, signal health, and live voice status stay one step deeper.
+              </AppText>
+            </Surface>
+
+            <VoiceControlBar
+              canUseVoice={canUseVoice}
+              isLeaderView={isLeaderView}
+              onLeaderAnnounce={onLeaderAnnounce}
+              onRetry={onRetryVoice}
+              onToggleMute={onToggleMute}
+              voiceSession={voiceSession}
+            />
+          </View>
         </View>
       </View>
 
@@ -309,6 +384,12 @@ export function LiveRideMap({ room, riders, layers }: LiveRideMapProps) {
                 Signal state
               </AppText>
               <AppText variant="title3">{selectedRider.signalState}</AppText>
+              {voiceParticipants[selectedRider.id] ? (
+                <AppText tone="secondary">
+                  Voice {voiceParticipants[selectedRider.id]?.isSpeaking ? "speaking" : voiceParticipants[selectedRider.id]?.isMuted ? "muted" : "listening"} |{" "}
+                  {voiceParticipants[selectedRider.id]?.networkQuality} network
+                </AppText>
+              ) : null}
               <AppText tone="secondary">Battery estimate placeholder: {selectedRider.batteryPct}% remaining</AppText>
               <AppText tone="secondary">Last update {new Date(selectedRider.lastUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</AppText>
             </Surface>
@@ -329,10 +410,30 @@ const styles = StyleSheet.create({
   },
   riderMarkerWrap: {
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
+    position: "relative"
+  },
+  speakingHalo: {
+    position: "absolute",
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 1.5,
+    opacity: 0.85
   },
   riderMarker: {
     borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  voiceBadge: {
+    position: "absolute",
+    right: -4,
+    top: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -396,6 +497,9 @@ const styles = StyleSheet.create({
     left: 14,
     right: 14,
     bottom: 14
+  },
+  bottomHudStack: {
+    gap: 10
   },
   bottomCard: {
     padding: 12,

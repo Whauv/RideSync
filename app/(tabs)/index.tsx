@@ -13,6 +13,7 @@ import { Screen } from "@/components/primitives/Screen";
 import { SegmentedControl } from "@/components/primitives/SegmentedControl";
 import { Surface } from "@/components/primitives/Surface";
 import { TextField } from "@/components/primitives/TextField";
+import { VoiceControlBar } from "@/components/voice/VoiceControlBar";
 import { LobbyMemberRow } from "@/components/room/LobbyMemberRow";
 import { RoomInviteCard } from "@/components/room/RoomInviteCard";
 import { LiveRideMap } from "@/components/ride/LiveRideMap";
@@ -31,6 +32,7 @@ import {
   updateRoomMemberPresence,
   updateRoomMemberReadiness
 } from "@/services/roomWorkflow";
+import { voiceAdapter } from "@/services/voice";
 import { useAppStore } from "@/store/useAppStore";
 import { RideRoomSnapshot, RoomPrivacyMode } from "@/types/domain";
 
@@ -48,6 +50,9 @@ export default function RideScreen() {
   const rideLayers = useAppStore((state) => state.rideLayers);
   const leaderMusic = useAppStore((state) => state.leaderMusic);
   const roomPresenceState = useAppStore((state) => state.roomPresenceState);
+  const permissions = useAppStore((state) => state.permissions);
+  const voiceSession = useAppStore((state) => state.voiceSession);
+  const voiceParticipants = useAppStore((state) => state.voiceParticipants);
   const setRoomPresenceState = useAppStore((state) => state.setRoomPresenceState);
   const setRoomSession = useAppStore((state) => state.setRoomSession);
   const setRiders = useAppStore((state) => state.setRiders);
@@ -65,6 +70,7 @@ export default function RideScreen() {
     [authIdentity?.uid, roomMembers]
   );
   const isLeaderView = currentMember?.role === "leader";
+  const canUseVoice = permissions.microphone === "granted" && permissions.audio === "granted";
   const approvedCount = roomMembers.filter((member) => member.approvalStatus === "approved").length;
   const pendingCount = roomMembers.filter((member) => member.approvalStatus === "pending").length;
   const readyCount = roomMembers.filter((member) => member.readiness === "ready" && member.approvalStatus === "approved").length;
@@ -208,6 +214,23 @@ export default function RideScreen() {
     });
   }
 
+  async function handleToggleMute() {
+    await voiceAdapter.setMuted(!voiceSession.selfMuted);
+  }
+
+  async function handleRetryVoice() {
+    await voiceAdapter.retryConnection();
+  }
+
+  async function handleLeaderAnnounce() {
+    await voiceAdapter.requestLeaderAnnounce();
+    showToast({
+      title: "Announce mode queued",
+      message: "Leader-priority voice routing is stubbed in UI and ready for transport policy wiring.",
+      tone: "warning"
+    });
+  }
+
   if (!activeRoom) {
     return (
       <Screen scroll>
@@ -302,7 +325,18 @@ export default function RideScreen() {
           title={activeRoom.title}
         />
 
-        <LiveRideMap layers={rideLayers} riders={riders} room={activeRoom} />
+        <LiveRideMap
+          canUseVoice={canUseVoice}
+          isLeaderView={Boolean(isLeaderView)}
+          layers={rideLayers}
+          onLeaderAnnounce={handleLeaderAnnounce}
+          onRetryVoice={handleRetryVoice}
+          onToggleMute={handleToggleMute}
+          riders={riders}
+          room={activeRoom}
+          voiceParticipants={voiceParticipants}
+          voiceSession={voiceSession}
+        />
 
         <View style={styles.metricsRow}>
           <Surface raised style={styles.metricCard}>
@@ -388,6 +422,15 @@ export default function RideScreen() {
           />
       </Surface>
 
+      <VoiceControlBar
+        canUseVoice={canUseVoice}
+        isLeaderView={Boolean(isLeaderView)}
+        onLeaderAnnounce={handleLeaderAnnounce}
+        onRetry={handleRetryVoice}
+        onToggleMute={handleToggleMute}
+        voiceSession={voiceSession}
+      />
+
       <View style={styles.memberStack}>
         {roomMembers.map((member) => (
           <LobbyMemberRow
@@ -395,6 +438,7 @@ export default function RideScreen() {
             isCurrentUser={member.userId === authIdentity?.uid}
             isLeaderView={Boolean(isLeaderView)}
             member={member}
+            voiceParticipant={voiceParticipants[member.id]}
             onApprove={() => handleLeaderAction(() => approveRoomMember(activeRoom.id, member.id))}
             onRemove={() => handleLeaderAction(() => removeRoomMember(activeRoom.id, member.id))}
             onToggleIntercom={() =>
