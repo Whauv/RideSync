@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import { AuthIdentity, PermissionState, RiderProfile } from "@/types/auth";
-import { LeaderMusicState, RideMessage, RideRoom, RiderPresence } from "@/types/domain";
+import { LeaderMusicState, PresenceState, RideMessage, RideRoom, RiderPresence, RoomMember } from "@/types/domain";
 
 type ThemeMode = "system" | "light" | "dark";
 
@@ -74,7 +74,10 @@ interface AppState {
   hasSeenOnboarding: boolean;
   profile: RiderProfile;
   permissions: PermissionState;
+  pendingJoinCode: string | null;
   activeRoom: RideRoom | null;
+  roomMembers: RoomMember[];
+  roomPresenceState: PresenceState;
   riders: RiderPresence[];
   messages: RideMessage[];
   leaderMusic: LeaderMusicState;
@@ -87,7 +90,10 @@ interface AppState {
   replaceProfile: (profile: RiderProfile) => void;
   updatePermission: (key: keyof PermissionState, value: PermissionState[keyof PermissionState]) => void;
   resetPermissions: () => void;
-  joinRoom: (room: RideRoom, riders: RiderPresence[], messages: RideMessage[]) => void;
+  setPendingJoinCode: (code: string | null) => void;
+  setRoomSession: (room: RideRoom, members: RoomMember[], riders: RiderPresence[], messages: RideMessage[]) => void;
+  clearRoomSession: () => void;
+  setRoomPresenceState: (presenceState: PresenceState) => void;
   postMessage: (message: RideMessage) => void;
   signOutLocal: () => void;
 }
@@ -101,7 +107,10 @@ export const useAppStore = create<AppState>()(
       hasSeenOnboarding: false,
       profile: defaultProfile,
       permissions: defaultPermissions,
+      pendingJoinCode: null,
       activeRoom: null,
+      roomMembers: [],
+      roomPresenceState: "connected",
       riders: [],
       messages: [],
       leaderMusic: seededMusic,
@@ -137,7 +146,22 @@ export const useAppStore = create<AppState>()(
           }
         })),
       resetPermissions: () => set({ permissions: defaultPermissions }),
-      joinRoom: (room, riders, messages) => set({ activeRoom: room, riders, messages }),
+      setPendingJoinCode: (code) => set({ pendingJoinCode: code }),
+      setRoomSession: (room, members, riders, messages) =>
+        set({
+          activeRoom: room,
+          roomMembers: members,
+          riders,
+          messages
+        }),
+      clearRoomSession: () =>
+        set({
+          activeRoom: null,
+          roomMembers: [],
+          riders: [],
+          messages: []
+        }),
+      setRoomPresenceState: (roomPresenceState) => set({ roomPresenceState }),
       postMessage: (message) =>
         set((state) => ({
           messages: [message, ...state.messages]
@@ -145,7 +169,9 @@ export const useAppStore = create<AppState>()(
       signOutLocal: () =>
         set({
           authIdentity: null,
+          pendingJoinCode: null,
           activeRoom: null,
+          roomMembers: [],
           riders: [],
           messages: [],
           permissions: defaultPermissions
@@ -158,7 +184,8 @@ export const useAppStore = create<AppState>()(
         themeMode: state.themeMode,
         hasSeenOnboarding: state.hasSeenOnboarding,
         profile: state.profile,
-        permissions: state.permissions
+        permissions: state.permissions,
+        pendingJoinCode: state.pendingJoinCode
       })
     }
   )

@@ -71,7 +71,7 @@ export function MapPreview({ riders }: MapPreviewProps) {
         <AppText variant="footnote" tone="secondary">
           Rider formation
         </AppText>
-        <AppText variant="title3">12 riders · Heading north-west · Pack intact</AppText>
+        <AppText variant="title3">12 riders | Heading north-west | Pack intact</AppText>
       </View>
     </View>
   );

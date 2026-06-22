@@ -1,44 +1,328 @@
-import { useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { AppState, StyleSheet, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
 import { router } from "expo-router";
 
 import { AppHeader } from "@/components/primitives/AppHeader";
 import { AppText } from "@/components/primitives/AppText";
-import { BottomSheet } from "@/components/primitives/BottomSheet";
 import { Button } from "@/components/primitives/Button";
 import { Chip } from "@/components/primitives/Chip";
+import { EmptyState } from "@/components/primitives/EmptyState";
 import { IconButton } from "@/components/primitives/IconButton";
 import { ListRow } from "@/components/primitives/ListRow";
 import { Screen } from "@/components/primitives/Screen";
+import { SegmentedControl } from "@/components/primitives/SegmentedControl";
 import { Surface } from "@/components/primitives/Surface";
+import { TextField } from "@/components/primitives/TextField";
+import { LobbyMemberRow } from "@/components/room/LobbyMemberRow";
+import { RoomInviteCard } from "@/components/room/RoomInviteCard";
 import { MapPreview } from "@/components/ride/MapPreview";
-import { useTheme } from "@/design/ThemeProvider";
-import { useRoomSnapshot } from "@/features/rooms/useRoomSnapshot";
 import { useToast } from "@/providers/ToastProvider";
+import {
+  approveRoomMember,
+  clearActiveRideRoom,
+  createRideRoom,
+  getRideRoomSnapshot,
+  joinRideRoom,
+  removeRoomMember,
+  setRoomLocked,
+  shareRideRoomInvite,
+  startRideRoom,
+  updateRoomMemberIntercom,
+  updateRoomMemberPresence,
+  updateRoomMemberReadiness
+} from "@/services/roomWorkflow";
 import { useAppStore } from "@/store/useAppStore";
+import { RideRoomSnapshot, RoomPrivacyMode } from "@/types/domain";
+
+type EntryMode = "create" | "join";
 
 export default function RideScreen() {
-  const theme = useTheme();
   const { showToast } = useToast();
-  const { data, isLoading } = useRoomSnapshot();
-  const joinRoom = useAppStore((state) => state.joinRoom);
+  const authIdentity = useAppStore((state) => state.authIdentity);
+  const profile = useAppStore((state) => state.profile);
+  const pendingJoinCode = useAppStore((state) => state.pendingJoinCode);
+  const setPendingJoinCode = useAppStore((state) => state.setPendingJoinCode);
   const activeRoom = useAppStore((state) => state.activeRoom);
+  const roomMembers = useAppStore((state) => state.roomMembers);
+  const riders = useAppStore((state) => state.riders);
   const leaderMusic = useAppStore((state) => state.leaderMusic);
-  const [showActions, setShowActions] = useState(false);
+  const roomPresenceState = useAppStore((state) => state.roomPresenceState);
+  const setRoomPresenceState = useAppStore((state) => state.setRoomPresenceState);
+  const setRoomSession = useAppStore((state) => state.setRoomSession);
+  const clearRoomSession = useAppStore((state) => state.clearRoomSession);
+
+  const [entryMode, setEntryMode] = useState<EntryMode>("create");
+  const [busy, setBusy] = useState(false);
+  const [roomName, setRoomName] = useState("");
+  const [privacyMode, setPrivacyMode] = useState<RoomPrivacyMode>("invite_only");
+  const [routeTitle, setRouteTitle] = useState("");
+  const [maxRiders, setMaxRiders] = useState(8);
+  const [joinValue, setJoinValue] = useState("");
+
+  const currentMember = useMemo(
+    () => roomMembers.find((member) => member.userId === authIdentity?.uid) ?? null,
+    [authIdentity?.uid, roomMembers]
+  );
+  const isLeaderView = currentMember?.role === "leader";
+  const approvedCount = roomMembers.filter((member) => member.approvalStatus === "approved").length;
+  const pendingCount = roomMembers.filter((member) => member.approvalStatus === "pending").length;
+  const readyCount = roomMembers.filter((member) => member.readiness === "ready" && member.approvalStatus === "approved").length;
 
   useEffect(() => {
-    if (data && !activeRoom) {
-      joinRoom(data.room, data.riders, data.messages);
+    if (pendingJoinCode) {
+      setEntryMode("join");
+      setJoinValue(pendingJoinCode);
     }
-  }, [activeRoom, data, joinRoom]);
+  }, [pendingJoinCode]);
 
-  if (isLoading || !data) {
+  useEffect(() => {
+    if (!activeRoom || !authIdentity) {
+      return;
+    }
+
+    const subscription = AppState.addEventListener("change", async (state) => {
+      if (!currentMember) {
+        return;
+      }
+
+      const nextPresence = state === "active" ? "connected" : "reconnecting";
+      setRoomPresenceState(nextPresence);
+
+      const snapshot = await updateRoomMemberPresence(activeRoom.id, authIdentity.uid, nextPresence);
+      setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.messages);
+    });
+
+    return () => subscription.remove();
+  }, [activeRoom, authIdentity, currentMember, setRoomPresenceState, setRoomSession]);
+
+  async function handleCreateRoom() {
+    if (!authIdentity) {
+      return;
+    }
+
+    if (!roomName.trim()) {
+      showToast({
+        title: "Add a room name",
+        message: "Leaders need a clear room name before inviting riders.",
+        tone: "warning"
+      });
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      const snapshot = await createRideRoom(
+        {
+          roomName,
+          privacyMode,
+          routeTitle,
+          maxRiders
+        },
+        authIdentity,
+        profile
+      );
+      setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.messages);
+      showToast({
+        title: "Room created",
+        message: `${snapshot.room.title} is ready for riders to join.`,
+        tone: "success"
+      });
+    } catch (error) {
+      showToast({
+        title: "Room creation failed",
+        message: error instanceof Error ? error.message : "Unable to create room.",
+        tone: "danger"
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleJoinRoom() {
+    if (!authIdentity) {
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      const snapshot = await joinRideRoom({ value: joinValue }, authIdentity, profile);
+      setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.messages);
+      setPendingJoinCode(null);
+      showToast({
+        title: "Room joined",
+        message:
+          snapshot.room.privacyMode === "approval_required"
+            ? "Your join request was sent to the leader."
+            : "You are in the ride lobby.",
+        tone: "success"
+      });
+    } catch (error) {
+      showToast({
+        title: "Join failed",
+        message: error instanceof Error ? error.message : "Unable to join room.",
+        tone: "danger"
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleShareInvite() {
+    if (!activeRoom) {
+      return;
+    }
+
+    await shareRideRoomInvite(activeRoom);
+  }
+
+  async function handleLeaderAction(action: () => Promise<RideRoomSnapshot>) {
+    if (!activeRoom) {
+      return;
+    }
+
+    const snapshot = await action();
+    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.messages);
+  }
+
+  async function handleStartRide() {
+    if (!activeRoom) {
+      return;
+    }
+
+    const snapshot = await startRideRoom(activeRoom.id);
+    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.messages);
+    showToast({
+      title: "Ride started",
+      message: "The room moved from lobby to live ride mode.",
+      tone: "success"
+    });
+  }
+
+  if (!activeRoom) {
     return (
-      <Screen>
-        <View style={styles.loader}>
-          <ActivityIndicator color={theme.colors.accent} />
-          <AppText tone="secondary">Loading live ride shell…</AppText>
+      <Screen scroll>
+        <AppHeader
+          eyebrow="RIDE ROOM"
+          subtitle="Create a premium ride-control room or join from an invite link, QR card, or direct code."
+          title="Control center"
+        />
+
+        <Surface raised style={styles.entryCard}>
+          <SegmentedControl
+            onChange={setEntryMode}
+            options={[
+              { label: "Create room", value: "create" },
+              { label: "Join room", value: "join" }
+            ]}
+            value={entryMode}
+          />
+
+          {entryMode === "create" ? (
+            <View style={styles.form}>
+              <TextField label="Room name" onChangeText={setRoomName} placeholder="Front Range Dawn Run" value={roomName} />
+              <SegmentedControl
+                onChange={setPrivacyMode}
+                options={[
+                  { label: "Invite only", value: "invite_only" },
+                  { label: "Approve riders", value: "approval_required" }
+                ]}
+                value={privacyMode}
+              />
+              <TextField
+                helperText="Optional route or regroup label."
+                label="Route title"
+                onChangeText={setRouteTitle}
+                placeholder="Nederland Loop"
+                value={routeTitle}
+              />
+              <Surface muted style={styles.maxRiderCard}>
+                <View>
+                  <AppText variant="footnote" tone="secondary">
+                    Max riders
+                  </AppText>
+                  <AppText variant="title2">{maxRiders}</AppText>
+                </View>
+                <View style={styles.maxControls}>
+                  <IconButton icon="minus" onPress={() => setMaxRiders((current) => Math.max(2, current - 1))} />
+                  <IconButton icon="plus" onPress={() => setMaxRiders((current) => Math.min(24, current + 1))} />
+                </View>
+              </Surface>
+              <Button label="Create ride room" loading={busy} onPress={handleCreateRoom} />
+            </View>
+          ) : (
+            <View style={styles.form}>
+              <TextField
+                helperText="Paste a deep link or enter the room code."
+                label="Invite link or code"
+                onChangeText={setJoinValue}
+                placeholder="A7Q9K or ridesync://join?code=A7Q9K"
+                value={joinValue}
+              />
+              {pendingJoinCode ? (
+                <ListRow
+                  leading={<Chip label="Invite detected" tone="accent" />}
+                  subtitle="A deep link prefilled this code. You can edit it before joining."
+                  title={pendingJoinCode}
+                  trailing={<Button label="Clear" onPress={() => setPendingJoinCode(null)} variant="ghost" />}
+                />
+              ) : null}
+              <Button label="Join ride room" loading={busy} onPress={handleJoinRoom} />
+            </View>
+          )}
+        </Surface>
+
+        <EmptyState
+          actionLabel="Open design showcase"
+          body="Once a room exists, the ride tab becomes a premium lobby with invite sharing, presence, and leader control."
+          icon="motorbike"
+          onAction={() => router.push("/internal/design-showcase")}
+          title="No active room"
+        />
+      </Screen>
+    );
+  }
+
+  if (activeRoom.lifecycle === "rolling") {
+    return (
+      <Screen scroll>
+        <AppHeader
+          eyebrow={`ROOM ${activeRoom.code}`}
+          right={<IconButton icon="dots-horizontal" onPress={() => router.push("/modal")} />}
+          subtitle={`${activeRoom.routeTitle ?? "Open route"} | ${approvedCount} approved riders | ${roomPresenceState}`}
+          title={activeRoom.title}
+        />
+
+        <MapPreview riders={riders} />
+
+        <View style={styles.metricsRow}>
+          <Surface raised style={styles.metricCard}>
+            <AppText tone="secondary" variant="footnote">
+              Group pace
+            </AppText>
+            <AppText variant="metric">67</AppText>
+            <Chip label="Rolling" tone="success" />
+          </Surface>
+          <Surface style={styles.metricCard}>
+            <AppText tone="secondary" variant="footnote">
+              Playback
+            </AppText>
+            <AppText variant="title2">{leaderMusic.track}</AppText>
+            <AppText tone="secondary" variant="callout">
+              {leaderMusic.artist}
+            </AppText>
+          </Surface>
         </View>
+
+        <Surface style={styles.panel}>
+          <ListRow
+            leading={<Chip label={roomPresenceState} tone={roomPresenceState === "connected" ? "success" : "warning"} />}
+            subtitle="Presence and reconnect state stay visible but calm while the ride is live."
+            title="Presence status"
+          />
+          {isLeaderView ? <Button label="Return to lobby" onPress={() => handleLeaderAction(() => clearActiveRideRoom(activeRoom.id))} variant="secondary" /> : null}
+        </Surface>
       </Screen>
     );
   }
@@ -46,80 +330,130 @@ export default function RideScreen() {
   return (
     <Screen scroll>
       <AppHeader
-        eyebrow={`ROOM ${data.room.code}`}
-        right={<IconButton icon="dots-horizontal" onPress={() => router.push("/modal")} />}
-        subtitle={`${data.room.destination} · ETA ${data.room.etaMinutes} min · ${data.room.riderCount} riders`}
-        title={data.room.title}
+        eyebrow={`ROOM ${activeRoom.code}`}
+        right={<Chip label={activeRoom.locked ? "Locked" : "Open"} tone={activeRoom.locked ? "warning" : "success"} />}
+        subtitle={`${activeRoom.routeTitle ?? "Route not set"} | ${approvedCount}/${activeRoom.maxRiders} approved riders`}
+        title={activeRoom.title}
       />
-
-      <MapPreview riders={data.riders} />
 
       <View style={styles.metricsRow}>
         <Surface raised style={styles.metricCard}>
           <AppText tone="secondary" variant="footnote">
-            Group pace
+            Approved riders
           </AppText>
-          <AppText variant="metric">67</AppText>
-          <Chip label="Stable" tone="success" />
+          <AppText variant="metric">{approvedCount}</AppText>
+          <Chip label={`${readyCount} ready`} tone="success" />
         </Surface>
         <Surface style={styles.metricCard}>
           <AppText tone="secondary" variant="footnote">
-            Ride state
+            Presence
           </AppText>
-          <AppText variant="title2">Rolling</AppText>
+          <AppText variant="title2">{roomPresenceState}</AppText>
           <AppText tone="secondary" variant="callout">
-            Tail confirms full pack through latest split.
+            {pendingCount > 0 ? `${pendingCount} riders awaiting approval.` : "Room roster is clear."}
           </AppText>
         </Surface>
       </View>
 
+      <RoomInviteCard room={activeRoom} onShare={handleShareInvite} />
+
       <Surface style={styles.panel}>
-        <AppText tone="secondary" variant="footnote">
-          Leader playback
-        </AppText>
-        <AppText variant="title2">{leaderMusic.track}</AppText>
-        <AppText tone="secondary">{leaderMusic.artist}</AppText>
-        <View style={styles.row}>
+          <ListRow
+            leading={<Chip label={roomPresenceState} tone={roomPresenceState === "connected" ? "success" : "warning"} />}
+            subtitle="Current device presence and reconnect health update with foreground changes."
+            title="Presence sync"
+            trailing={
+              roomPresenceState !== "connected" ? (
+                <Button
+                  label="Retry"
+                  onPress={() => {
+                    if (!authIdentity) {
+                      return;
+                    }
+
+                    void handleLeaderAction(() => updateRoomMemberPresence(activeRoom.id, authIdentity.uid, "connected"));
+                  }}
+                  variant="ghost"
+                />
+              ) : undefined
+            }
+          />
+      </Surface>
+
+      <View style={styles.memberStack}>
+        {roomMembers.map((member) => (
+          <LobbyMemberRow
+            key={member.id}
+            isCurrentUser={member.userId === authIdentity?.uid}
+            isLeaderView={Boolean(isLeaderView)}
+            member={member}
+            onApprove={() => handleLeaderAction(() => approveRoomMember(activeRoom.id, member.id))}
+            onRemove={() => handleLeaderAction(() => removeRoomMember(activeRoom.id, member.id))}
+            onToggleIntercom={() =>
+              handleLeaderAction(() =>
+                updateRoomMemberIntercom(activeRoom.id, member.userId, member.intercomState !== "connected")
+              )
+            }
+            onToggleReady={() =>
+              handleLeaderAction(() =>
+                updateRoomMemberReadiness(activeRoom.id, member.userId, member.readiness === "ready" ? "review" : "ready")
+              )
+            }
+          />
+        ))}
+      </View>
+
+      {isLeaderView ? (
+        <Surface raised style={styles.panel}>
+          <AppText variant="title3">Leader controls</AppText>
+          <AppText tone="secondary">
+            Approve riders, secure the room, and start the ride when the roster is ready.
+          </AppText>
           <Button
-            label={leaderMusic.isPlaying ? "Pause group" : "Resume group"}
-            onPress={() => showToast({ title: "Music sync updated", message: "Leader transport state broadcast to riders.", tone: "success" })}
+            label={activeRoom.locked ? "Unlock room" : "Lock room"}
+            onPress={() => handleLeaderAction(() => setRoomLocked(activeRoom.id, !activeRoom.locked))}
             variant="secondary"
           />
-          <Button label="Ride actions" onPress={() => setShowActions(true)} />
-        </View>
-      </Surface>
-
-      <Surface muted style={styles.panel}>
-        <ListRow
-          chevron
-          leading={<Chip label="Connectivity" tone="success" />}
-          onPress={() => showToast({ title: "Network healthy", message: "Voice and presence round-trip are within target.", tone: "success" })}
-          subtitle="Foreground sync, telemetry cache, and voice reconnect policies are configured."
-          title="Operational status"
-        />
-      </Surface>
-
-      <BottomSheet onClose={() => setShowActions(false)} visible={showActions}>
-        <AppText variant="title2">Live ride actions</AppText>
-        <Button label="Regroup at next turnout" variant="secondary" />
-        <Button label="Mark hazard ahead" variant="secondary" />
-        <Button label="Send fuel ping" variant="secondary" />
-      </BottomSheet>
+          <Button label="Start ride" onPress={handleStartRide} />
+        </Surface>
+      ) : (
+        <Surface style={styles.panel}>
+          <AppText variant="title3">Waiting room status</AppText>
+          <AppText tone="secondary">
+            {currentMember?.approvalStatus === "pending"
+              ? "Leader approval is still required before you enter the live ride."
+              : "Set readiness and intercom state here while the leader stages the group."}
+          </AppText>
+        </Surface>
+      )}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  loader: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12
+  entryCard: {
+    padding: 16,
+    gap: 16,
+    marginBottom: 12
+  },
+  form: {
+    gap: 14
+  },
+  maxRiderCard: {
+    padding: 14,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center"
+  },
+  maxControls: {
+    flexDirection: "row",
+    gap: 8
   },
   metricsRow: {
     flexDirection: "row",
     gap: 12,
-    marginTop: 12
+    marginTop: 12,
+    marginBottom: 12
   },
   metricCard: {
     flex: 1,
@@ -128,12 +462,11 @@ const styles = StyleSheet.create({
   },
   panel: {
     padding: 16,
-    marginTop: 12,
-    gap: 8
-  },
-  row: {
-    flexDirection: "row",
     gap: 10,
-    marginTop: 8
+    marginTop: 12
+  },
+  memberStack: {
+    gap: 10,
+    marginTop: 12
   }
 });
