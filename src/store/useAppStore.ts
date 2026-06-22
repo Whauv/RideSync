@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import { AuthIdentity, PermissionState, RiderProfile } from "@/types/auth";
-import { LeaderMusicState, PresenceState, RideAlertState, RideLayerMarker, RideMessage, RideRoom, RiderPresence, RoomMember } from "@/types/domain";
+import { LeaderMusicState, PresenceState, RideAlertState, RideLayerMarker, RideMessage, RidePlan, RideRoom, RiderPresence, RoomMember } from "@/types/domain";
 import { MusicSyncSnapshot } from "@/types/music";
 import { VoiceParticipantState, VoiceSessionSnapshot } from "@/types/voice";
 
@@ -139,6 +139,7 @@ interface AppState {
   rideLayers: RideLayerMarker[];
   messages: RideMessage[];
   activeAlert: RideAlertState | null;
+  ridePlan: RidePlan | null;
   messageReadAtByRoom: Record<string, string | null>;
   leaderMusic: LeaderMusicState;
   musicSync: MusicSyncSnapshot;
@@ -160,7 +161,8 @@ interface AppState {
     riders: RiderPresence[],
     layers: RideLayerMarker[],
     messages: RideMessage[],
-    activeAlert: RideAlertState | null
+    activeAlert: RideAlertState | null,
+    ridePlan: RidePlan | null
   ) => void;
   clearRoomSession: () => void;
   setRoomPresenceState: (presenceState: PresenceState) => void;
@@ -194,6 +196,7 @@ export const useAppStore = create<AppState>()(
       rideLayers: [],
       messages: [],
       activeAlert: null,
+      ridePlan: null,
       messageReadAtByRoom: {},
       leaderMusic: seededMusic,
       musicSync: defaultMusicSync,
@@ -232,14 +235,15 @@ export const useAppStore = create<AppState>()(
         })),
       resetPermissions: () => set({ permissions: defaultPermissions }),
       setPendingJoinCode: (code) => set({ pendingJoinCode: code }),
-      setRoomSession: (room, members, riders, layers, messages, activeAlert) =>
+      setRoomSession: (room, members, riders, layers, messages, activeAlert, ridePlan) =>
         set({
           activeRoom: room,
           roomMembers: members,
           riders,
           rideLayers: layers,
           messages,
-          activeAlert
+          activeAlert,
+          ridePlan
         }),
       clearRoomSession: () =>
         set({
@@ -248,7 +252,8 @@ export const useAppStore = create<AppState>()(
           riders: [],
           rideLayers: [],
           messages: [],
-          activeAlert: null
+          activeAlert: null,
+          ridePlan: null
         }),
       setRoomPresenceState: (roomPresenceState) => set({ roomPresenceState }),
       setRiders: (riders) => set({ riders }),
@@ -285,6 +290,7 @@ export const useAppStore = create<AppState>()(
           rideLayers: [],
           messages: [],
           activeAlert: null,
+          ridePlan: null,
           permissions: defaultPermissions,
           musicSync: defaultMusicSync,
           voiceSession: defaultVoiceSession,
