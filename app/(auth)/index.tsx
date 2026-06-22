@@ -1,97 +1,133 @@
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { router } from "expo-router";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
-import { AppHeader } from "@/components/primitives/AppHeader";
 import { AppText } from "@/components/primitives/AppText";
 import { Button } from "@/components/primitives/Button";
-import { OTPInput } from "@/components/primitives/OTPInput";
+import { Chip } from "@/components/primitives/Chip";
 import { Screen } from "@/components/primitives/Screen";
-import { SegmentedControl } from "@/components/primitives/SegmentedControl";
 import { Surface } from "@/components/primitives/Surface";
-import { TextField } from "@/components/primitives/TextField";
 import { useTheme } from "@/design/ThemeProvider";
 import { useAppStore } from "@/store/useAppStore";
 
-type AuthMode = "link" | "code";
+const onboardingSteps = [
+  {
+    icon: "radio-handheld",
+    eyebrow: "ROOM VOICE",
+    title: "Stay in one channel while the pack stretches and compresses.",
+    body: "Leader, sweep, and riders share one operational voice layer tuned for fast ride decisions."
+  },
+  {
+    icon: "map-marker-path",
+    eyebrow: "RIDE MAP",
+    title: "See the group, not just the route.",
+    body: "Live heading, rider spacing, and stale-state awareness keep regroup decisions grounded in reality."
+  },
+  {
+    icon: "shield-check-outline",
+    eyebrow: "PERMISSIONS",
+    title: "We ask only for the capabilities the ride actually uses.",
+    body: "Location, microphone, notifications, and audio readiness are requested with clear safety context."
+  },
+  {
+    icon: "alert-decagram-outline",
+    eyebrow: "SAFETY VALUE",
+    title: "Fuel, hazard, and SOS cues stay immediate when conditions get messy.",
+    body: "RideSync is designed to reduce ambiguity when riders split, stall, or need help quickly."
+  }
+] as const;
 
-export default function AuthScreen() {
+export default function OnboardingScreen() {
   const theme = useTheme();
-  const signIn = useAppStore((state) => state.signIn);
-  const [authMode, setAuthMode] = useState<AuthMode>("link");
-  const [name, setName] = useState("Alex Mercer");
-  const [contact, setContact] = useState("alex@ridesync.app");
-  const [code, setCode] = useState("A7Q9K");
+  const completeOnboarding = useAppStore((state) => state.completeOnboarding);
+  const [stepIndex, setStepIndex] = useState(0);
+  const step = onboardingSteps[stepIndex];
+  const isLast = stepIndex === onboardingSteps.length - 1;
 
-  function handleEnter() {
-    signIn(name.trim() || "Rider");
-    router.replace("/(tabs)");
+  function handleNext() {
+    if (isLast) {
+      completeOnboarding();
+      router.replace("/(auth)/sign-in");
+      return;
+    }
+
+    setStepIndex((current) => current + 1);
   }
 
   return (
     <Screen>
-      <KeyboardAvoidingView behavior={Platform.select({ ios: "padding", android: undefined })} style={styles.flex}>
-        <View style={styles.hero}>
-          <AppText variant="label" tone="accent">
-            RIDESYNC
-          </AppText>
-          <AppText variant="display">A premium ride ops layer for groups that need to move with precision.</AppText>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Chip label={`0${stepIndex + 1} / 0${onboardingSteps.length}`} tone="accent" />
+          <AppText variant="display">RideSync</AppText>
           <AppText tone="secondary">
-            Built for map-first coordination, live comms, fast signals, and low-friction room entry on the roadside.
+            Premium coordination for motorcycle groups that need calm, high-trust tools.
           </AppText>
         </View>
 
-        <Surface raised style={styles.panel}>
-          <AppHeader title="Enter your room" subtitle="Choose the lightest-weight join flow for the moment." />
-          <View style={styles.form}>
-            <SegmentedControl
-              onChange={setAuthMode}
-              options={[
-                { label: "Magic Link", value: "link" },
-                { label: "Code", value: "code" }
-              ]}
-              value={authMode}
-            />
-            <TextField helperText="Used for the active ride roster." label="Rider name" onChangeText={setName} value={name} />
-            {authMode === "link" ? (
-              <TextField
-                helperText="Phone auth can replace this in production."
-                keyboardType="email-address"
-                label="Email"
-                leadingIcon="email-outline"
-                onChangeText={setContact}
-                placeholder="you@example.com"
-                value={contact}
-              />
-            ) : (
-              <OTPInput digits={5} label="Ride code" onChangeText={setCode} value={code} />
-            )}
-            <View style={[styles.rule, { backgroundColor: theme.colors.lineSubtle }]} />
-            <Button label="Enter RideSync" onPress={handleEnter} />
+        <Surface raised style={styles.card}>
+          <View style={[styles.icon, { backgroundColor: theme.colors.accentMuted }]}>
+            <MaterialCommunityIcons color={theme.colors.accent} name={step.icon} size={24} />
           </View>
+          <View style={styles.copy}>
+            <AppText variant="label" tone="accent">
+              {step.eyebrow}
+            </AppText>
+            <AppText variant="title1">{step.title}</AppText>
+            <AppText tone="secondary">{step.body}</AppText>
+          </View>
+          <View style={styles.progress}>
+            {onboardingSteps.map((item, index) => (
+              <View
+                key={item.eyebrow}
+                style={[
+                  styles.dot,
+                  {
+                    backgroundColor: index === stepIndex ? theme.colors.accent : theme.colors.lineSubtle
+                  }
+                ]}
+              />
+            ))}
+          </View>
+          <Button label={isLast ? "Continue to sign in" : "Next"} onPress={handleNext} />
         </Surface>
-      </KeyboardAvoidingView>
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: {
+  container: {
     flex: 1,
     justifyContent: "space-between",
     paddingVertical: 24
   },
-  hero: {
-    gap: 12,
-    paddingTop: 20
+  header: {
+    gap: 10,
+    paddingTop: 24
   },
-  panel: {
-    padding: 18
+  card: {
+    padding: 20,
+    gap: 18
   },
-  form: {
-    gap: 16
+  icon: {
+    width: 56,
+    height: 56,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center"
   },
-  rule: {
-    height: 1
+  copy: {
+    gap: 8
+  },
+  progress: {
+    flexDirection: "row",
+    gap: 8
+  },
+  dot: {
+    height: 4,
+    flex: 1,
+    borderRadius: 999
   }
 });

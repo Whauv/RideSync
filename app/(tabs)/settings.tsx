@@ -13,6 +13,7 @@ import { Screen } from "@/components/primitives/Screen";
 import { SegmentedControl } from "@/components/primitives/SegmentedControl";
 import { Surface } from "@/components/primitives/Surface";
 import { useToast } from "@/providers/ToastProvider";
+import { signOutUser } from "@/services/auth";
 import { useAppStore } from "@/store/useAppStore";
 
 const themeModes = [
@@ -25,6 +26,7 @@ export default function SettingsScreen() {
   const { showToast } = useToast();
   const themeMode = useAppStore((state) => state.themeMode);
   const setThemeMode = useAppStore((state) => state.setThemeMode);
+  const signOutLocal = useAppStore((state) => state.signOutLocal);
   const [showProviderModal, setShowProviderModal] = useState(false);
 
   return (
@@ -55,6 +57,16 @@ export default function SettingsScreen() {
           onPress={() => setShowProviderModal(true)}
           subtitle="LiveKit-first voice abstraction and transport-safe playback model."
           title="Provider stack"
+        />
+        <ListRow
+          leading={<Chip label="Account" tone="warning" />}
+          onPress={async () => {
+            await signOutUser().catch(() => undefined);
+            signOutLocal();
+            router.replace("/(auth)/sign-in");
+          }}
+          subtitle="Clear the current rider session and return to authentication."
+          title="Sign out"
         />
       </Surface>
 
