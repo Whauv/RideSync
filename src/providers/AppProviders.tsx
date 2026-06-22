@@ -5,6 +5,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AuthBootstrap } from "@/providers/AuthBootstrap";
 import { ThemeProvider } from "@/design/ThemeProvider";
+import { NotificationBootstrap } from "@/features/coordination/NotificationBootstrap";
 import { VoiceBootstrap } from "@/features/voice/VoiceBootstrap";
 import { ToastProvider } from "@/providers/ToastProvider";
 
@@ -26,11 +27,13 @@ export function AppProviders({ children }: PropsWithChildren) {
       <SafeAreaProvider>
         <ThemeProvider>
           <QueryClientProvider client={queryClient}>
-            <ToastProvider>
-              <AuthBootstrap>
-                <VoiceBootstrap>{children}</VoiceBootstrap>
-              </AuthBootstrap>
-            </ToastProvider>
+            <NotificationBootstrap>
+              <ToastProvider>
+                <AuthBootstrap>
+                  <VoiceBootstrap>{children}</VoiceBootstrap>
+                </AuthBootstrap>
+              </ToastProvider>
+            </NotificationBootstrap>
           </QueryClientProvider>
         </ThemeProvider>
       </SafeAreaProvider>

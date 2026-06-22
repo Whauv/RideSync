@@ -10,13 +10,14 @@ import { SegmentedControl } from "@/components/primitives/SegmentedControl";
 import { Surface } from "@/components/primitives/Surface";
 import { VoiceControlBar } from "@/components/voice/VoiceControlBar";
 import { useTheme } from "@/design/ThemeProvider";
-import { RideLayerMarker, RideMapMode, RideRoom, RiderPresence } from "@/types/domain";
+import { RideAlertState, RideLayerMarker, RideMapMode, RideRoom, RiderPresence } from "@/types/domain";
 import { VoiceParticipantState, VoiceSessionSnapshot } from "@/types/voice";
 
 interface LiveRideMapProps {
   room: RideRoom;
   riders: RiderPresence[];
   layers: RideLayerMarker[];
+  activeAlert: RideAlertState | null;
   voiceSession: VoiceSessionSnapshot;
   voiceParticipants: Record<string, VoiceParticipantState>;
   canUseVoice: boolean;
@@ -92,6 +93,7 @@ export function LiveRideMap({
   room,
   riders,
   layers,
+  activeAlert,
   voiceSession,
   voiceParticipants,
   canUseVoice,
@@ -297,6 +299,14 @@ export function LiveRideMap({
                 </AppText>
               </View>
             </View>
+            {activeAlert?.status === "active" ? (
+              <View style={styles.alertRow}>
+                <Chip label={activeAlert.kind === "sos" ? "SOS ACTIVE" : "Emergency"} tone="danger" />
+                <AppText tone="inverse" variant="footnote">
+                  {activeAlert.triggeredByName}
+                </AppText>
+              </View>
+            ) : null}
           </Surface>
 
           <Surface style={styles.ribbon}>
@@ -476,6 +486,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     gap: 18
+  },
+  alertRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8
   },
   ribbon: {
     padding: 12,

@@ -18,6 +18,7 @@ interface TextFieldProps {
   keyboardType?: "default" | "email-address" | "numeric";
   autoCapitalize?: "none" | "sentences" | "words" | "characters";
   autoCorrect?: boolean;
+  multiline?: boolean;
   textContentType?:
     | "none"
     | "name"
@@ -41,6 +42,7 @@ export function TextField({
   keyboardType = "default",
   autoCapitalize = "sentences",
   autoCorrect = false,
+  multiline = false,
   textContentType
 }: TextFieldProps) {
   const theme = useTheme();
@@ -56,11 +58,12 @@ export function TextField({
           autoCapitalize={autoCapitalize}
           autoCorrect={autoCorrect}
           keyboardType={keyboardType}
+          multiline={multiline}
           onChangeText={onChangeText}
           placeholder={placeholder}
           placeholderTextColor={theme.colors.textTertiary}
           secureTextEntry={secureTextEntry}
-          style={[styles.input, { color: theme.colors.textPrimary }]}
+          style={[styles.input, multiline && styles.inputMultiline, { color: theme.colors.textPrimary }]}
           textContentType={textContentType}
           value={value}
         />
@@ -96,5 +99,9 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     paddingVertical: 14
+  },
+  inputMultiline: {
+    minHeight: 92,
+    textAlignVertical: "top"
   }
 });

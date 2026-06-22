@@ -10,6 +10,8 @@ export type IntercomState = "connected" | "not_connected";
 export type RiderSignalState = "strong" | "moderate" | "weak";
 export type RideLayerType = "regroup" | "hazard" | "fuel" | "emergency";
 export type RideMapMode = "day" | "night" | "focus";
+export type QuickPingType = "pull_over" | "fuel_stop" | "need_break" | "hazard" | "regroup" | "all_good" | "emergency";
+export type RideAlertStatus = "active" | "resolved";
 
 export interface RiderPresence {
   id: string;
@@ -82,9 +84,27 @@ export interface RideMessage {
   id: string;
   senderId: string;
   senderName: string;
+  createdAt: string;
   sentAt: string;
   kind: "message" | "ping" | "sos" | "system";
   body: string;
+  pingType?: QuickPingType;
+  severity?: "normal" | "high" | "critical";
+  metadata?: {
+    actorRole?: RiderRole;
+    countdownSeconds?: number;
+  };
+}
+
+export interface RideAlertState {
+  id: string;
+  kind: "sos" | "emergency_ping";
+  status: RideAlertStatus;
+  triggeredByUserId: string;
+  triggeredByName: string;
+  detail: string;
+  createdAt: string;
+  resolvedAt?: string;
 }
 
 export interface RoomJoinPayload {
@@ -97,6 +117,7 @@ export interface RideRoomSnapshot {
   riders: RiderPresence[];
   layers: RideLayerMarker[];
   messages: RideMessage[];
+  activeAlert: RideAlertState | null;
 }
 
 export interface LeaderMusicState {
