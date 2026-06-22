@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 
 import { AuthIdentity, PermissionState, RiderProfile } from "@/types/auth";
 import { LeaderMusicState, PresenceState, RideLayerMarker, RideMessage, RideRoom, RiderPresence, RoomMember } from "@/types/domain";
+import { VoiceParticipantState, VoiceSessionSnapshot } from "@/types/voice";
 
 type ThemeMode = "system" | "light" | "dark";
 
@@ -32,6 +33,24 @@ const seededMusic: LeaderMusicState = {
   track: "Northern Pass",
   artist: "Signal / Line",
   elapsedSeconds: 96
+};
+
+const defaultVoiceSession: VoiceSessionSnapshot = {
+  provider: "livekit",
+  roomId: null,
+  connectionState: "idle",
+  networkQuality: "good",
+  selfMuted: false,
+  poorNetwork: false,
+  leaderAnnounceRequested: false,
+  deviceStatus: {
+    inputLabel: "Helmet mic",
+    outputLabel: "Bluetooth intercom",
+    bluetoothConnected: true,
+    backgroundProtected: false
+  },
+  activeSpeakerIds: [],
+  errorMessage: null
 };
 
 export function deriveInitials(name: string) {
@@ -82,6 +101,8 @@ interface AppState {
   rideLayers: RideLayerMarker[];
   messages: RideMessage[];
   leaderMusic: LeaderMusicState;
+  voiceSession: VoiceSessionSnapshot;
+  voiceParticipants: Record<string, VoiceParticipantState>;
   setThemeMode: (themeMode: ThemeMode) => void;
   setAuthBootstrapped: (value: boolean) => void;
   setAuthIdentity: (identity: AuthIdentity) => void;
@@ -102,6 +123,11 @@ interface AppState {
   clearRoomSession: () => void;
   setRoomPresenceState: (presenceState: PresenceState) => void;
   setRiders: (riders: RiderPresence[]) => void;
+  setVoiceSnapshot: (
+    voiceSession: VoiceSessionSnapshot,
+    voiceParticipants: Record<string, VoiceParticipantState>
+  ) => void;
+  resetVoiceState: () => void;
   postMessage: (message: RideMessage) => void;
   signOutLocal: () => void;
 }
@@ -123,6 +149,8 @@ export const useAppStore = create<AppState>()(
       rideLayers: [],
       messages: [],
       leaderMusic: seededMusic,
+      voiceSession: defaultVoiceSession,
+      voiceParticipants: {},
       setThemeMode: (themeMode) => set({ themeMode }),
       setAuthBootstrapped: (value) => set({ authBootstrapped: value }),
       setAuthIdentity: (identity) => set({ authIdentity: identity }),
@@ -174,6 +202,16 @@ export const useAppStore = create<AppState>()(
         }),
       setRoomPresenceState: (roomPresenceState) => set({ roomPresenceState }),
       setRiders: (riders) => set({ riders }),
+      setVoiceSnapshot: (voiceSession, voiceParticipants) =>
+        set({
+          voiceSession,
+          voiceParticipants
+        }),
+      resetVoiceState: () =>
+        set({
+          voiceSession: defaultVoiceSession,
+          voiceParticipants: {}
+        }),
       postMessage: (message) =>
         set((state) => ({
           messages: [message, ...state.messages]
@@ -187,7 +225,9 @@ export const useAppStore = create<AppState>()(
           riders: [],
           rideLayers: [],
           messages: [],
-          permissions: defaultPermissions
+          permissions: defaultPermissions,
+          voiceSession: defaultVoiceSession,
+          voiceParticipants: {}
         })
     }),
     {
