@@ -126,7 +126,7 @@ export default function RideScreen() {
       setRoomPresenceState(nextPresence);
 
       const snapshot = await updateRoomMemberPresence(activeRoom.id, authIdentity.uid, nextPresence);
-      setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert);
+      setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert, snapshot.ridePlan);
     });
 
     return () => subscription.remove();
@@ -159,7 +159,7 @@ export default function RideScreen() {
         authIdentity,
         profile
       );
-      setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert);
+      setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert, snapshot.ridePlan);
       showToast({
         title: "Room created",
         message: `${snapshot.room.title} is ready for riders to join.`,
@@ -185,7 +185,7 @@ export default function RideScreen() {
 
     try {
       const snapshot = await joinRideRoom({ value: joinValue }, authIdentity, profile);
-      setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert);
+      setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert, snapshot.ridePlan);
       setPendingJoinCode(null);
       showToast({
         title: "Room joined",
@@ -220,7 +220,7 @@ export default function RideScreen() {
     }
 
     const snapshot = await action();
-    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert);
+    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert, snapshot.ridePlan);
   }
 
   async function handleStartRide() {
@@ -229,7 +229,7 @@ export default function RideScreen() {
     }
 
     const snapshot = await startRideRoom(activeRoom.id);
-    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert);
+    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert, snapshot.ridePlan);
     showToast({
       title: "Ride started",
       message: "The room moved from lobby to live ride mode.",
@@ -260,7 +260,7 @@ export default function RideScreen() {
     }
 
     const snapshot = await sendQuickPing(activeRoom.id, authIdentity, profile, type);
-    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert);
+    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert, snapshot.ridePlan);
     showToast({
       title: QUICK_PINGS.find((ping) => ping.type === type)?.label ?? "Ping sent",
       message: "The room was updated immediately.",
@@ -274,7 +274,7 @@ export default function RideScreen() {
     }
 
     const snapshot = await resolveActiveAlert(activeRoom.id, authIdentity, profile);
-    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert);
+    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert, snapshot.ridePlan);
   }
 
   async function handleConfirmSos(countdownSeconds: number) {
@@ -284,7 +284,7 @@ export default function RideScreen() {
 
     setSosVisible(false);
     const snapshot = await triggerSosAlert(activeRoom.id, authIdentity, profile, countdownSeconds);
-    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert);
+    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert, snapshot.ridePlan);
   }
 
   async function handleMusicPlayPause() {

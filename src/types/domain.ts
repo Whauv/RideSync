@@ -12,6 +12,9 @@ export type RideLayerType = "regroup" | "hazard" | "fuel" | "emergency";
 export type RideMapMode = "day" | "night" | "focus";
 export type QuickPingType = "pull_over" | "fuel_stop" | "need_break" | "hazard" | "regroup" | "all_good" | "emergency";
 export type RideAlertStatus = "active" | "resolved";
+export type RideStopType = "fuel" | "food" | "scenic" | "break" | "emergency_fallback";
+export type RouteImportType = "gpx_reference" | "route_reference";
+export type RiderRsvpStatus = "pending" | "going" | "late" | "cant_make_it";
 
 export interface RiderPresence {
   id: string;
@@ -67,10 +70,38 @@ export interface RoomMember {
   role: RiderRole;
   approvalStatus: MemberApprovalStatus;
   readiness: MemberReadiness;
+  rsvpStatus: RiderRsvpStatus;
   presenceState: PresenceState;
   intercomState: IntercomState;
   joinedAt: string;
   lastSeenAt: string;
+}
+
+export interface RidePlanStop {
+  id: string;
+  type: RideStopType;
+  title: string;
+  note: string;
+  etaOffsetMinutes: number;
+}
+
+export interface RidePlanImportHook {
+  id: string;
+  type: RouteImportType;
+  reference: string;
+  importedAt: string;
+}
+
+export interface RidePlan {
+  id: string;
+  routeTitle: string;
+  scheduledFor: string;
+  meetupPoint: string;
+  notes: string;
+  distanceMiles: number;
+  etaMinutes: number;
+  imports: RidePlanImportHook[];
+  stops: RidePlanStop[];
 }
 
 export interface CreateRoomInput {
@@ -118,6 +149,7 @@ export interface RideRoomSnapshot {
   layers: RideLayerMarker[];
   messages: RideMessage[];
   activeAlert: RideAlertState | null;
+  ridePlan: RidePlan | null;
 }
 
 export interface LeaderMusicState {

@@ -9,6 +9,10 @@ import {
   QuickPingType,
   MemberReadiness,
   PresenceState,
+  RidePlan,
+  RidePlanImportHook,
+  RidePlanStop,
+  RiderRsvpStatus,
   RideAlertState,
   RideMessage,
   RideLayerMarker,
@@ -92,6 +96,7 @@ function buildMember(
     role,
     approvalStatus,
     readiness: role === "leader" ? "ready" : "review",
+    rsvpStatus: role === "leader" ? "going" : "pending",
     presenceState: "connected",
     intercomState: "not_connected",
     joinedAt: timestamp,
@@ -158,6 +163,44 @@ function buildRideLayers(room: RideRoom): RideLayerMarker[] {
   ];
 }
 
+function buildDefaultRidePlan(room: RideRoom): RidePlan {
+  const scheduledFor = new Date(Date.now() + 1000 * 60 * 60 * 18).toISOString();
+
+  return {
+    id: buildId("plan"),
+    routeTitle: room.routeTitle ?? room.title,
+    scheduledFor,
+    meetupPoint: "Morrison Park-and-Ride",
+    notes: "Fuel topped off, rain layer packed, and intercom paired before departure.",
+    distanceMiles: 118,
+    etaMinutes: 210,
+    imports: [],
+    stops: [
+      {
+        id: buildId("stop"),
+        type: "fuel",
+        title: "Nederland fuel stop",
+        note: "Fast pumps and quick regroup lane.",
+        etaOffsetMinutes: 58
+      },
+      {
+        id: buildId("stop"),
+        type: "food",
+        title: "Canyon lunch window",
+        note: "Quick service and hydration reset.",
+        etaOffsetMinutes: 112
+      },
+      {
+        id: buildId("stop"),
+        type: "emergency_fallback",
+        title: "Front range fallback",
+        note: "Weather or mechanical bail-out point.",
+        etaOffsetMinutes: 146
+      }
+    ]
+  };
+}
+
 function buildSystemMessage(body: string, senderId: string, senderName: string): RideMessage {
   const timestamp = nowIso();
 
@@ -216,7 +259,8 @@ function hydrateRoomSnapshot(snapshot: RideRoomSnapshot): RideRoomSnapshot {
       riderCount: snapshot.members.filter((member) => member.approvalStatus === "approved").length
     },
     members: sortMembers(snapshot.members),
-    activeAlert: snapshot.activeAlert ?? null
+    activeAlert: snapshot.activeAlert ?? null,
+    ridePlan: snapshot.ridePlan ?? buildDefaultRidePlan(snapshot.room)
   };
 }
 
@@ -248,7 +292,8 @@ export async function createRideRoom(input: CreateRoomInput, authIdentity: AuthI
     riders: [],
     layers: [],
     messages: [buildSystemMessage("Leader opened the room.", leaderMember.id, leaderMember.riderName)],
-    activeAlert: null
+    activeAlert: null,
+    ridePlan: buildDefaultRidePlan(room)
   });
 
   store.rooms = [snapshot, ...store.rooms.filter((item) => item.room.id !== snapshot.room.id)];
@@ -316,7 +361,8 @@ export async function joinRideRoom(payload: RoomJoinPayload, authIdentity: AuthI
       ),
       ...snapshot.messages
     ],
-    activeAlert: snapshot.activeAlert
+    activeAlert: snapshot.activeAlert,
+    ridePlan: snapshot.ridePlan
   });
 
   store.rooms[targetIndex] = nextSnapshot;
@@ -328,6 +374,70 @@ export async function getRideRoomSnapshot(roomId: string) {
   const store = await readStore();
   const snapshot = store.rooms.find((item) => item.room.id === roomId);
   return snapshot ? hydrateRoomSnapshot(snapshot) : null;
+}
+
+export async function updateRidePlan(roomId: string, partial: Partial<RidePlan>) {
+  return mutateRoom(roomId, (snapshot) => ({
+    ...snapshot,
+    ridePlan: snapshot.ridePlan
+      ? {
+          ...snapshot.ridePlan,
+          ...partial
+        }
+      : null
+  }));
+}
+
+export async function addRidePlanStop(roomId: string, stop: Omit<RidePlanStop, "id">) {
+  return mutateRoom(roomId, (snapshot) => ({
+    ...snapshot,
+    ridePlan: snapshot.ridePlan
+      ? {
+          ...snapshot.ridePlan,
+          stops: [
+            ...snapshot.ridePlan.stops,
+            {
+              ...stop,
+              id: buildId("stop")
+            }
+          ]
+        }
+      : null
+  }));
+}
+
+export async function importRideRouteReference(roomId: string, hook: Omit<RidePlanImportHook, "id" | "importedAt">) {
+  return mutateRoom(roomId, (snapshot) => ({
+    ...snapshot,
+    ridePlan: snapshot.ridePlan
+      ? {
+          ...snapshot.ridePlan,
+          imports: [
+            {
+              id: buildId("import"),
+              importedAt: nowIso(),
+              ...hook
+            },
+            ...snapshot.ridePlan.imports
+          ]
+        }
+      : null
+  }));
+}
+
+export async function updateRoomMemberRsvp(roomId: string, userId: string, rsvpStatus: RiderRsvpStatus) {
+  return mutateRoom(roomId, (snapshot) => ({
+    ...snapshot,
+    members: snapshot.members.map((member) =>
+      member.userId === userId
+        ? {
+            ...member,
+            rsvpStatus,
+            lastSeenAt: nowIso()
+          }
+        : member
+    )
+  }));
 }
 
 export async function sendRoomMessage(roomId: string, authIdentity: AuthIdentity, profile: RiderProfile, body: string) {
@@ -625,7 +735,8 @@ export async function clearActiveRideRoom(roomId: string) {
     },
     riders: [],
     layers: [],
-    activeAlert: snapshot.activeAlert?.status === "active" ? { ...snapshot.activeAlert, status: "resolved", resolvedAt: nowIso() } : snapshot.activeAlert
+    activeAlert: snapshot.activeAlert?.status === "active" ? { ...snapshot.activeAlert, status: "resolved", resolvedAt: nowIso() } : snapshot.activeAlert,
+    ridePlan: snapshot.ridePlan
   }));
 }
 
@@ -644,6 +755,20 @@ async function mutateRoom(roomId: string, updater: (snapshot: RideRoomSnapshot) 
 
 export async function shareRideRoomInvite(room: RideRoom) {
   const message = `Join ${room.title} in RideSync\nCode: ${room.code}\nLink: ${room.inviteLink}`;
+  await Share.share({
+    message
+  });
+}
+
+export async function shareRideBrief(room: RideRoom, ridePlan: RidePlan | null, members: RoomMember[]) {
+  if (!ridePlan) {
+    throw new Error("Ride plan not available.");
+  }
+
+  const confirmed = members.filter((member) => member.rsvpStatus === "going").length;
+  const stops = ridePlan.stops.map((stop) => `- ${stop.title} (${stop.type.replaceAll("_", " ")})`).join("\n");
+  const message = `${room.title}\n${ridePlan.routeTitle}\n${new Date(ridePlan.scheduledFor).toLocaleString()}\nMeetup: ${ridePlan.meetupPoint}\nDistance: ${ridePlan.distanceMiles} mi\nETA: ${ridePlan.etaMinutes} min\nConfirmed riders: ${confirmed}\nStops:\n${stops}\nNotes: ${ridePlan.notes}`;
+
   await Share.share({
     message
   });

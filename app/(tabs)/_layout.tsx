@@ -53,6 +53,13 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="plan"
+        options={{
+          title: "Plan",
+          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons color={color} name="map-marker-distance" size={size} />
+        }}
+      />
+      <Tabs.Screen
         name="squad"
         options={{
           title: "Squad",

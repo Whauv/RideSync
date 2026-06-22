@@ -71,7 +71,7 @@ export default function CommsScreen() {
     action: ReturnType<typeof sendRoomMessage> | ReturnType<typeof sendQuickPing> | ReturnType<typeof triggerSosAlert> | ReturnType<typeof resolveActiveAlert>
   ) {
     const snapshot = await action;
-    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert);
+    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert, snapshot.ridePlan);
   }
 
   async function handleSend() {
