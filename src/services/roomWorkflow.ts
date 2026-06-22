@@ -8,6 +8,7 @@ import {
   MemberReadiness,
   PresenceState,
   RideMessage,
+  RideLayerMarker,
   RideRoom,
   RideRoomSnapshot,
   RiderPresence,
@@ -101,6 +102,7 @@ function buildMember(
 
 function buildRidePresence(members: RoomMember[]): RiderPresence[] {
   const approvedMembers = members.filter((member) => member.approvalStatus === "approved");
+  const timestamp = nowIso();
 
   return approvedMembers.map((member, index) => ({
     id: member.id,
@@ -113,9 +115,48 @@ function buildRidePresence(members: RoomMember[]): RiderPresence[] {
     isTalking: member.role === "leader",
     hasMusicSync: member.intercomState === "connected",
     batteryPct: 80 - index * 7,
+    signalState: index === 0 ? "strong" : index === 1 ? "moderate" : "weak",
+    lastUpdatedAt: timestamp,
     lat: ROOM_BASE_LAT + index * 0.004,
     lng: ROOM_BASE_LNG + index * 0.006
   }));
+}
+
+function buildRideLayers(room: RideRoom): RideLayerMarker[] {
+  return [
+    {
+      id: `${room.id}-regroup`,
+      type: "regroup",
+      title: "Regroup turnout",
+      subtitle: "Leader fallback rally point",
+      lat: ROOM_BASE_LAT + 0.011,
+      lng: ROOM_BASE_LNG + 0.014
+    },
+    {
+      id: `${room.id}-hazard`,
+      type: "hazard",
+      title: "Gravel wash",
+      subtitle: "Reduced traction reported",
+      lat: ROOM_BASE_LAT + 0.018,
+      lng: ROOM_BASE_LNG - 0.006
+    },
+    {
+      id: `${room.id}-fuel`,
+      type: "fuel",
+      title: "Fuel stop",
+      subtitle: "Next planned top-off",
+      lat: ROOM_BASE_LAT + 0.028,
+      lng: ROOM_BASE_LNG + 0.008
+    },
+    {
+      id: `${room.id}-emergency`,
+      type: "emergency",
+      title: "Emergency staging",
+      subtitle: "Visible to leader only until needed",
+      lat: ROOM_BASE_LAT - 0.008,
+      lng: ROOM_BASE_LNG + 0.02
+    }
+  ];
 }
 
 function buildSystemMessage(body: string, senderId: string, senderName: string): RideMessage {
@@ -180,6 +221,7 @@ export async function createRideRoom(input: CreateRoomInput, authIdentity: AuthI
     room,
     members: [leaderMember],
     riders: [],
+    layers: [],
     messages: [buildSystemMessage("Leader opened the room.", leaderMember.id, leaderMember.riderName)]
   });
 
@@ -362,6 +404,7 @@ export async function startRideRoom(roomId: string) {
       startedAt: nowIso()
     },
     riders: buildRidePresence(snapshot.members),
+    layers: buildRideLayers(snapshot.room),
     messages: [
       buildSystemMessage("Leader started the ride.", snapshot.room.leaderId, "Leader"),
       ...snapshot.messages
@@ -376,7 +419,8 @@ export async function clearActiveRideRoom(roomId: string) {
       ...snapshot.room,
       lifecycle: "lobby"
     },
-    riders: []
+    riders: [],
+    layers: []
   }));
 }
 

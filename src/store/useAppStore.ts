@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import { AuthIdentity, PermissionState, RiderProfile } from "@/types/auth";
-import { LeaderMusicState, PresenceState, RideMessage, RideRoom, RiderPresence, RoomMember } from "@/types/domain";
+import { LeaderMusicState, PresenceState, RideLayerMarker, RideMessage, RideRoom, RiderPresence, RoomMember } from "@/types/domain";
 
 type ThemeMode = "system" | "light" | "dark";
 
@@ -79,6 +79,7 @@ interface AppState {
   roomMembers: RoomMember[];
   roomPresenceState: PresenceState;
   riders: RiderPresence[];
+  rideLayers: RideLayerMarker[];
   messages: RideMessage[];
   leaderMusic: LeaderMusicState;
   setThemeMode: (themeMode: ThemeMode) => void;
@@ -91,9 +92,16 @@ interface AppState {
   updatePermission: (key: keyof PermissionState, value: PermissionState[keyof PermissionState]) => void;
   resetPermissions: () => void;
   setPendingJoinCode: (code: string | null) => void;
-  setRoomSession: (room: RideRoom, members: RoomMember[], riders: RiderPresence[], messages: RideMessage[]) => void;
+  setRoomSession: (
+    room: RideRoom,
+    members: RoomMember[],
+    riders: RiderPresence[],
+    layers: RideLayerMarker[],
+    messages: RideMessage[]
+  ) => void;
   clearRoomSession: () => void;
   setRoomPresenceState: (presenceState: PresenceState) => void;
+  setRiders: (riders: RiderPresence[]) => void;
   postMessage: (message: RideMessage) => void;
   signOutLocal: () => void;
 }
@@ -112,6 +120,7 @@ export const useAppStore = create<AppState>()(
       roomMembers: [],
       roomPresenceState: "connected",
       riders: [],
+      rideLayers: [],
       messages: [],
       leaderMusic: seededMusic,
       setThemeMode: (themeMode) => set({ themeMode }),
@@ -147,11 +156,12 @@ export const useAppStore = create<AppState>()(
         })),
       resetPermissions: () => set({ permissions: defaultPermissions }),
       setPendingJoinCode: (code) => set({ pendingJoinCode: code }),
-      setRoomSession: (room, members, riders, messages) =>
+      setRoomSession: (room, members, riders, layers, messages) =>
         set({
           activeRoom: room,
           roomMembers: members,
           riders,
+          rideLayers: layers,
           messages
         }),
       clearRoomSession: () =>
@@ -159,9 +169,11 @@ export const useAppStore = create<AppState>()(
           activeRoom: null,
           roomMembers: [],
           riders: [],
+          rideLayers: [],
           messages: []
         }),
       setRoomPresenceState: (roomPresenceState) => set({ roomPresenceState }),
+      setRiders: (riders) => set({ riders }),
       postMessage: (message) =>
         set((state) => ({
           messages: [message, ...state.messages]
@@ -173,6 +185,7 @@ export const useAppStore = create<AppState>()(
           activeRoom: null,
           roomMembers: [],
           riders: [],
+          rideLayers: [],
           messages: [],
           permissions: defaultPermissions
         })
