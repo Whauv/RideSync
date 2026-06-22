@@ -11,6 +11,8 @@ export default function RootLayout() {
         <Stack.Screen name="index" />
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="internal/design-showcase" />
+        <Stack.Screen name="modal" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
       </Stack>
     </AppProviders>
   );

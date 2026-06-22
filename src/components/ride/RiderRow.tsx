@@ -1,7 +1,9 @@
 import { StyleSheet, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
-import { AppText } from "@/components/core/AppText";
+import { AppText } from "@/components/primitives/AppText";
+import { Avatar } from "@/components/primitives/Avatar";
+import { Chip } from "@/components/primitives/Chip";
 import { useTheme } from "@/design/ThemeProvider";
 import { RiderPresence } from "@/types/domain";
 
@@ -13,30 +15,26 @@ export function RiderRow({ rider }: RiderRowProps) {
   const theme = useTheme();
 
   return (
-    <View style={[styles.row, { borderBottomColor: theme.colors.line }]}>
-      <View style={styles.identity}>
-        <View
-          style={[
-            styles.badge,
-            { backgroundColor: rider.role === "leader" ? theme.colors.accentSoft : theme.colors.surfaceMuted }
-          ]}
-        >
-          <MaterialCommunityIcons
-            name={rider.isTalking ? "microphone" : "motorbike"}
-            size={15}
-            color={rider.isTalking ? theme.colors.accent : theme.colors.textMuted}
+    <View style={[styles.row, { borderBottomColor: theme.colors.lineSubtle }]}>
+      <Avatar accent={rider.role === "leader"} name={rider.name} />
+      <View style={styles.copy}>
+        <View style={styles.titleRow}>
+          <AppText variant="bodyStrong">{rider.name}</AppText>
+          <Chip
+            label={rider.role === "leader" ? "Leader" : rider.status}
+            tone={rider.role === "leader" ? "accent" : rider.status === "fuel" ? "warning" : "neutral"}
           />
         </View>
-        <View>
-          <AppText style={styles.name}>{rider.name}</AppText>
-          <AppText variant="caption" tone="soft">
-            {rider.bike}
-          </AppText>
-        </View>
+        <AppText variant="callout" tone="secondary">
+          {rider.bike}
+        </AppText>
       </View>
       <View style={styles.meta}>
-        <AppText style={styles.metric}>{rider.speedMph}</AppText>
-        <AppText variant="caption" tone="soft">
+        <View style={styles.speedRow}>
+          {rider.isTalking ? <MaterialCommunityIcons color={theme.colors.accent} name="microphone" size={16} /> : null}
+          <AppText variant="title3">{rider.speedMph}</AppText>
+        </View>
+        <AppText variant="footnote" tone="tertiary">
           mph
         </AppText>
       </View>
@@ -48,30 +46,26 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 12,
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth
   },
-  identity: {
+  copy: {
+    flex: 1,
+    gap: 4
+  },
+  titleRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12
-  },
-  badge: {
-    width: 36,
-    height: 36,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  name: {
-    fontWeight: "600"
+    gap: 8
   },
   meta: {
-    alignItems: "flex-end"
+    alignItems: "flex-end",
+    gap: 2
   },
-  metric: {
-    fontSize: 18,
-    fontWeight: "700"
+  speedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6
   }
 });

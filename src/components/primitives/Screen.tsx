@@ -1,33 +1,34 @@
 import { PropsWithChildren } from "react";
-import { ScrollView, StyleSheet, View, ViewStyle } from "react-native";
+import { ScrollView, StyleProp, StyleSheet, View, ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useTheme } from "@/design/ThemeProvider";
 
 interface ScreenProps extends PropsWithChildren {
   scroll?: boolean;
-  contentStyle?: ViewStyle;
+  contentStyle?: StyleProp<ViewStyle>;
+  insetBottom?: boolean;
 }
 
-export function Screen({ children, scroll = false, contentStyle }: ScreenProps) {
+export function Screen({ children, scroll = false, contentStyle, insetBottom = true }: ScreenProps) {
   const theme = useTheme();
-  const content = <View style={[styles.content, contentStyle]}>{children}</View>;
+  const body = <View style={[styles.content, !insetBottom && styles.noBottomInset, contentStyle]}>{children}</View>;
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.bg }]}>
+    <SafeAreaView edges={["top", "left", "right", "bottom"]} style={[styles.safe, { backgroundColor: theme.colors.background }]}>
       {scroll ? (
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          {content}
+          {body}
         </ScrollView>
       ) : (
-        content
+        body
       )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  safe: {
     flex: 1
   },
   scrollContent: {
@@ -37,5 +38,8 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingBottom: 16
+  },
+  noBottomInset: {
+    paddingBottom: 0
   }
 });

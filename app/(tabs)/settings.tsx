@@ -1,87 +1,78 @@
-import { Pressable, StyleSheet, View } from "react-native";
+import { useState } from "react";
+import { StyleSheet } from "react-native";
+import { router } from "expo-router";
 
-import { AppText } from "@/components/core/AppText";
-import { Screen } from "@/components/core/Screen";
-import { Surface } from "@/components/core/Surface";
-import { useTheme } from "@/design/ThemeProvider";
+import { AppHeader } from "@/components/primitives/AppHeader";
+import { AppModal } from "@/components/primitives/AppModal";
+import { AppText } from "@/components/primitives/AppText";
+import { Button } from "@/components/primitives/Button";
+import { Chip } from "@/components/primitives/Chip";
+import { IconButton } from "@/components/primitives/IconButton";
+import { ListRow } from "@/components/primitives/ListRow";
+import { Screen } from "@/components/primitives/Screen";
+import { SegmentedControl } from "@/components/primitives/SegmentedControl";
+import { Surface } from "@/components/primitives/Surface";
+import { useToast } from "@/providers/ToastProvider";
 import { useAppStore } from "@/store/useAppStore";
 
-const themeModes = ["system", "light", "dark"] as const;
+const themeModes = [
+  { label: "System", value: "system" },
+  { label: "Light", value: "light" },
+  { label: "Dark", value: "dark" }
+] as const;
 
 export default function SettingsScreen() {
-  const theme = useTheme();
+  const { showToast } = useToast();
   const themeMode = useAppStore((state) => state.themeMode);
   const setThemeMode = useAppStore((state) => state.setThemeMode);
+  const [showProviderModal, setShowProviderModal] = useState(false);
 
   return (
     <Screen scroll>
-      <View style={styles.header}>
-        <AppText variant="title">System settings</AppText>
-        <AppText tone="muted">Provider readiness, appearance, and safety defaults.</AppText>
-      </View>
+      <AppHeader
+        eyebrow="SETTINGS"
+        right={<IconButton icon="palette-outline" onPress={() => showToast({ title: "Theme system active", message: "Light, dark, and system themes are wired into the shell." })} />}
+        subtitle="Appearance, provider readiness, and internal diagnostics stay out of the primary ride surface."
+        title="System"
+      />
 
-      <Surface>
-        <AppText variant="caption" tone="soft" style={styles.sectionLabel}>
-          Appearance
-        </AppText>
-        <View style={styles.optionRow}>
-          {themeModes.map((mode) => (
-            <Pressable
-              key={mode}
-              onPress={() => setThemeMode(mode)}
-              style={[
-                styles.option,
-                {
-                  backgroundColor: themeMode === mode ? theme.colors.accentSoft : theme.colors.surfaceMuted,
-                  borderColor: themeMode === mode ? theme.colors.accent : theme.colors.line
-                }
-              ]}
-            >
-              <AppText style={{ fontWeight: "600" }}>{mode}</AppText>
-            </Pressable>
-          ))}
-        </View>
+      <Surface style={styles.panel}>
+        <AppText variant="title3">Appearance</AppText>
+        <SegmentedControl onChange={setThemeMode} options={themeModes} value={themeMode} />
       </Surface>
 
-      <Surface muted style={styles.section}>
-        <AppText variant="caption" tone="soft">
-          Backend
-        </AppText>
-        <AppText>Firebase Auth, Firestore, and Functions scaffolded for production integration.</AppText>
+      <Surface style={styles.panel}>
+        <ListRow
+          chevron
+          leading={<Chip label="Internal" tone="accent" />}
+          onPress={() => router.push("/internal/design-showcase")}
+          subtitle="Every primitive in isolation, plus tone and state references."
+          title="Design showcase"
+        />
+        <ListRow
+          chevron
+          leading={<Chip label="Provider" tone="neutral" />}
+          onPress={() => setShowProviderModal(true)}
+          subtitle="LiveKit-first voice abstraction and transport-safe playback model."
+          title="Provider stack"
+        />
       </Surface>
 
-      <Surface muted style={styles.section}>
-        <AppText variant="caption" tone="soft">
-          Voice abstraction
+      <AppModal onClose={() => setShowProviderModal(false)} title="Provider stack" visible={showProviderModal}>
+        <AppText tone="secondary">
+          RideSync is configured around a LiveKit-first voice adapter, Firebase-backed room state, and a best-effort
+          synchronized playback contract rather than app-owned streaming.
         </AppText>
-        <AppText>LiveKit adapter is the first implementation; Agora remains a drop-in future provider.</AppText>
-      </Surface>
+        <Button label="Understood" onPress={() => setShowProviderModal(false)} />
+      </AppModal>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    gap: 6,
-    marginVertical: 18
-  },
-  sectionLabel: {
+  panel: {
+    padding: 16,
+    gap: 12,
     marginBottom: 12
-  },
-  optionRow: {
-    flexDirection: "row",
-    gap: 10
-  },
-  option: {
-    flex: 1,
-    minHeight: 48,
-    borderRadius: 16,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  section: {
-    marginTop: 12,
-    gap: 6
   }
 });

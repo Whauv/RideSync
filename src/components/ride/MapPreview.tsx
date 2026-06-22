@@ -1,8 +1,9 @@
 import { StyleSheet, View } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
-import { AppText } from "@/components/core/AppText";
+import { AppText } from "@/components/primitives/AppText";
+import { Chip } from "@/components/primitives/Chip";
 import { useTheme } from "@/design/ThemeProvider";
 import { RiderPresence } from "@/types/domain";
 
@@ -15,87 +16,94 @@ export function MapPreview({ riders }: MapPreviewProps) {
   const lead = riders[0];
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.surfaceStrong }]}>
+    <View style={[styles.shell, { backgroundColor: theme.colors.canvas, borderColor: theme.colors.lineSubtle }]}>
       <MapView
-        provider={PROVIDER_GOOGLE}
-        style={StyleSheet.absoluteFill}
-        scrollEnabled={false}
-        rotateEnabled={false}
-        pitchEnabled={false}
-        toolbarEnabled={false}
+        customMapStyle={[
+          { elementType: "geometry", stylers: [{ color: theme.colors.mapBase }] },
+          { featureType: "road", elementType: "geometry", stylers: [{ color: theme.colors.mapRoad }] },
+          { featureType: "water", elementType: "geometry", stylers: [{ color: theme.colors.mapWater }] },
+          { featureType: "poi", stylers: [{ visibility: "off" }] },
+          { featureType: "transit", stylers: [{ visibility: "off" }] }
+        ]}
         initialRegion={{
           latitude: lead?.lat ?? 39.7392,
           longitude: lead?.lng ?? -104.9903,
-          latitudeDelta: 0.07,
-          longitudeDelta: 0.07
+          latitudeDelta: 0.06,
+          longitudeDelta: 0.05
         }}
-        customMapStyle={[
-          { elementType: "geometry", stylers: [{ color: theme.colors.mapTerrain }] },
-          { elementType: "labels.text.fill", stylers: [{ color: theme.colors.textSoft }] },
-          { elementType: "labels.text.stroke", stylers: [{ color: theme.colors.mapTerrain }] },
-          { featureType: "road", elementType: "geometry", stylers: [{ color: theme.colors.mapRoad }] },
-          { featureType: "poi", stylers: [{ visibility: "off" }] },
-          { featureType: "transit", stylers: [{ visibility: "off" }] },
-          { featureType: "water", elementType: "geometry", stylers: [{ color: theme.colors.surfaceMuted }] }
-        ]}
+        pitchEnabled={false}
+        provider={PROVIDER_GOOGLE}
+        rotateEnabled={false}
+        scrollEnabled={false}
+        style={StyleSheet.absoluteFill}
+        toolbarEnabled={false}
       >
         {riders.map((rider) => (
-          <Marker
-            key={rider.id}
-            coordinate={{ latitude: rider.lat, longitude: rider.lng }}
-            title={rider.name}
-            description={`${rider.speedMph} mph`}
-          >
+          <Marker key={rider.id} coordinate={{ latitude: rider.lat, longitude: rider.lng }} title={rider.name}>
             <View
               style={[
-                styles.pin,
+                styles.marker,
                 {
-                  backgroundColor: rider.role === "leader" ? theme.colors.accent : theme.colors.surface,
-                  borderColor: rider.role === "leader" ? theme.colors.accent : theme.colors.line
+                  width: rider.role === "leader" ? 38 : 34,
+                  height: rider.role === "leader" ? 38 : 34,
+                  borderRadius: rider.role === "leader" ? 19 : 17,
+                  backgroundColor: rider.role === "leader" ? theme.colors.mapLeader : theme.colors.surface,
+                  borderColor: rider.role === "leader" ? theme.colors.mapLeader : theme.colors.lineStrong
                 }
               ]}
             >
               <MaterialCommunityIcons
+                color={rider.role === "leader" ? theme.colors.textInverse : theme.colors.mapRider}
                 name={rider.role === "leader" ? "navigation-variant" : "motorbike"}
-                size={14}
-                color={rider.role === "leader" ? theme.colors.bg : theme.colors.text}
+                size={16}
               />
             </View>
           </Marker>
         ))}
       </MapView>
-      <View style={[styles.legend, { backgroundColor: theme.colors.bgOverlay, borderColor: theme.colors.line }]}>
-        <AppText variant="caption">Formation live</AppText>
-        <AppText variant="caption" tone="soft">
-          Speed and heading update from location stream.
+
+      <View style={styles.topRail}>
+        <Chip icon="cellphone-wireless" label="Voice live" tone="accent" />
+        <Chip icon="signal" label="Telemetry stable" tone="success" />
+      </View>
+
+      <View style={[styles.legend, { backgroundColor: theme.colors.surfaceOverlay, borderColor: theme.colors.lineSubtle }]}>
+        <AppText variant="footnote" tone="secondary">
+          Rider formation
         </AppText>
+        <AppText variant="title3">12 riders · Heading north-west · Pack intact</AppText>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    height: 340,
-    borderRadius: 28,
+  shell: {
+    height: 360,
+    borderRadius: 30,
+    borderWidth: 1,
     overflow: "hidden",
     position: "relative"
   },
-  pin: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+  marker: {
+    borderWidth: 1.5,
     alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1.5
+    justifyContent: "center"
+  },
+  topRail: {
+    position: "absolute",
+    top: 14,
+    left: 14,
+    flexDirection: "row",
+    gap: 8
   },
   legend: {
     position: "absolute",
     left: 14,
     right: 14,
     bottom: 14,
-    borderRadius: 18,
     borderWidth: 1,
+    borderRadius: 22,
     padding: 12,
     gap: 2
   }

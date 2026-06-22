@@ -6,19 +6,24 @@ import { useTheme } from "@/design/ThemeProvider";
 interface SurfaceProps extends PropsWithChildren {
   style?: StyleProp<ViewStyle>;
   muted?: boolean;
+  raised?: boolean;
 }
 
-export function Surface({ children, style, muted = false }: SurfaceProps) {
+export function Surface({ children, style, muted = false, raised = false }: SurfaceProps) {
   const theme = useTheme();
 
   return (
     <View
       style={[
         styles.base,
-        theme.shadow.card,
+        raised ? theme.elevation.medium : theme.elevation.none,
         {
-          backgroundColor: muted ? theme.colors.surfaceMuted : theme.colors.surface,
-          borderColor: theme.colors.line
+          backgroundColor: raised
+            ? theme.colors.surfaceRaised
+            : muted
+              ? theme.colors.surfaceMuted
+              : theme.colors.surface,
+          borderColor: theme.colors.lineSubtle
         },
         style
       ]}
@@ -31,7 +36,6 @@ export function Surface({ children, style, muted = false }: SurfaceProps) {
 const styles = StyleSheet.create({
   base: {
     borderWidth: 1,
-    borderRadius: 24,
-    padding: 16
+    borderRadius: 24
   }
 });

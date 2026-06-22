@@ -2,56 +2,72 @@ import { useState } from "react";
 import { KeyboardAvoidingView, Platform, StyleSheet, View } from "react-native";
 import { router } from "expo-router";
 
-import { AppText } from "@/components/core/AppText";
-import { PrimaryButton } from "@/components/core/PrimaryButton";
-import { Screen } from "@/components/core/Screen";
-import { Surface } from "@/components/core/Surface";
-import { TextField } from "@/components/core/TextField";
-import { StateBanner } from "@/components/feedback/StateBanner";
+import { AppHeader } from "@/components/primitives/AppHeader";
+import { AppText } from "@/components/primitives/AppText";
+import { Button } from "@/components/primitives/Button";
+import { OTPInput } from "@/components/primitives/OTPInput";
+import { Screen } from "@/components/primitives/Screen";
+import { SegmentedControl } from "@/components/primitives/SegmentedControl";
+import { Surface } from "@/components/primitives/Surface";
+import { TextField } from "@/components/primitives/TextField";
 import { useTheme } from "@/design/ThemeProvider";
 import { useAppStore } from "@/store/useAppStore";
+
+type AuthMode = "link" | "code";
 
 export default function AuthScreen() {
   const theme = useTheme();
   const signIn = useAppStore((state) => state.signIn);
+  const [authMode, setAuthMode] = useState<AuthMode>("link");
   const [name, setName] = useState("Alex Mercer");
-  const [inviteCode, setInviteCode] = useState("A7Q9K");
+  const [contact, setContact] = useState("alex@ridesync.app");
+  const [code, setCode] = useState("A7Q9K");
 
-  function handleContinue() {
+  function handleEnter() {
     signIn(name.trim() || "Rider");
     router.replace("/(tabs)");
   }
 
   return (
     <Screen>
-      <KeyboardAvoidingView
-        behavior={Platform.select({ ios: "padding", android: undefined })}
-        style={styles.flex}
-      >
+      <KeyboardAvoidingView behavior={Platform.select({ ios: "padding", android: undefined })} style={styles.flex}>
         <View style={styles.hero}>
-          <AppText variant="caption" tone="accent">
-            RIDE OPS, REFINED
+          <AppText variant="label" tone="accent">
+            RIDESYNC
           </AppText>
-          <AppText variant="titleLg">Real-time group coordination built for riders who move as one.</AppText>
-          <AppText tone="muted">
-            Voice, map, ride messaging, sync cues, and leader control in one glove-friendly command surface.
+          <AppText variant="display">A premium ride ops layer for groups that need to move with precision.</AppText>
+          <AppText tone="secondary">
+            Built for map-first coordination, live comms, fast signals, and low-friction room entry on the roadside.
           </AppText>
         </View>
 
-        <Surface style={[styles.panel, { backgroundColor: theme.colors.bgElevated }]}>
+        <Surface raised style={styles.panel}>
+          <AppHeader title="Enter your room" subtitle="Choose the lightest-weight join flow for the moment." />
           <View style={styles.form}>
-            <TextField label="Rider name" value={name} onChangeText={setName} placeholder="Your display name" />
-            <TextField
-              label="Invite code"
-              value={inviteCode}
-              onChangeText={setInviteCode}
-              placeholder="Room code or link token"
+            <SegmentedControl
+              onChange={setAuthMode}
+              options={[
+                { label: "Magic Link", value: "link" },
+                { label: "Code", value: "code" }
+              ]}
+              value={authMode}
             />
-            <StateBanner
-              title="Permissions readiness"
-              body="The app requests microphone and location only when you enter a ride room."
-            />
-            <PrimaryButton label="Enter RideSync" onPress={handleContinue} />
+            <TextField helperText="Used for the active ride roster." label="Rider name" onChangeText={setName} value={name} />
+            {authMode === "link" ? (
+              <TextField
+                helperText="Phone auth can replace this in production."
+                keyboardType="email-address"
+                label="Email"
+                leadingIcon="email-outline"
+                onChangeText={setContact}
+                placeholder="you@example.com"
+                value={contact}
+              />
+            ) : (
+              <OTPInput digits={5} label="Ride code" onChangeText={setCode} value={code} />
+            )}
+            <View style={[styles.rule, { backgroundColor: theme.colors.lineSubtle }]} />
+            <Button label="Enter RideSync" onPress={handleEnter} />
           </View>
         </Surface>
       </KeyboardAvoidingView>
@@ -67,12 +83,15 @@ const styles = StyleSheet.create({
   },
   hero: {
     gap: 12,
-    paddingTop: 24
+    paddingTop: 20
   },
   panel: {
-    marginTop: 32
+    padding: 18
   },
   form: {
     gap: 16
+  },
+  rule: {
+    height: 1
   }
 });

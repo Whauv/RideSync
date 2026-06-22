@@ -11,16 +11,17 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          height: 72,
+          height: 74,
           paddingTop: 8,
-          backgroundColor: theme.colors.bgElevated,
-          borderTopColor: theme.colors.line
+          paddingBottom: 10,
+          backgroundColor: theme.colors.surfaceOverlay,
+          borderTopColor: theme.colors.lineSubtle,
+          position: "absolute"
         },
-        tabBarActiveTintColor: theme.colors.text,
-        tabBarInactiveTintColor: theme.colors.textSoft,
+        tabBarActiveTintColor: theme.colors.textPrimary,
+        tabBarInactiveTintColor: theme.colors.textTertiary,
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: "600"
+          ...theme.tokens.type.footnote
         }
       }}
     >
@@ -28,28 +29,28 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Ride",
-          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="map-outline" color={color} size={size} />
+          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons color={color} name="map-marker-path" size={size} />
         }}
       />
       <Tabs.Screen
         name="comms"
         options={{
           title: "Comms",
-          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="radio-handheld" color={color} size={size} />
+          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons color={color} name="radio-handheld" size={size} />
         }}
       />
       <Tabs.Screen
         name="squad"
         options={{
           title: "Squad",
-          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="account-group-outline" color={color} size={size} />
+          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons color={color} name="account-group-outline" size={size} />
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: "Settings",
-          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="tune-variant" color={color} size={size} />
+          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons color={color} name="tune-variant" size={size} />
         }}
       />
     </Tabs>
