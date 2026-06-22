@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import { AuthIdentity, PermissionState, RiderProfile } from "@/types/auth";
-import { LeaderMusicState, PresenceState, RideLayerMarker, RideMessage, RideRoom, RiderPresence, RoomMember } from "@/types/domain";
+import { LeaderMusicState, PresenceState, RideAlertState, RideLayerMarker, RideMessage, RideRoom, RiderPresence, RoomMember } from "@/types/domain";
 import { VoiceParticipantState, VoiceSessionSnapshot } from "@/types/voice";
 
 type ThemeMode = "system" | "light" | "dark";
@@ -100,6 +100,8 @@ interface AppState {
   riders: RiderPresence[];
   rideLayers: RideLayerMarker[];
   messages: RideMessage[];
+  activeAlert: RideAlertState | null;
+  messageReadAtByRoom: Record<string, string | null>;
   leaderMusic: LeaderMusicState;
   voiceSession: VoiceSessionSnapshot;
   voiceParticipants: Record<string, VoiceParticipantState>;
@@ -118,11 +120,13 @@ interface AppState {
     members: RoomMember[],
     riders: RiderPresence[],
     layers: RideLayerMarker[],
-    messages: RideMessage[]
+    messages: RideMessage[],
+    activeAlert: RideAlertState | null
   ) => void;
   clearRoomSession: () => void;
   setRoomPresenceState: (presenceState: PresenceState) => void;
   setRiders: (riders: RiderPresence[]) => void;
+  markRoomMessagesRead: (roomId: string, lastReadAt?: string) => void;
   setVoiceSnapshot: (
     voiceSession: VoiceSessionSnapshot,
     voiceParticipants: Record<string, VoiceParticipantState>
@@ -148,6 +152,8 @@ export const useAppStore = create<AppState>()(
       riders: [],
       rideLayers: [],
       messages: [],
+      activeAlert: null,
+      messageReadAtByRoom: {},
       leaderMusic: seededMusic,
       voiceSession: defaultVoiceSession,
       voiceParticipants: {},
@@ -184,13 +190,14 @@ export const useAppStore = create<AppState>()(
         })),
       resetPermissions: () => set({ permissions: defaultPermissions }),
       setPendingJoinCode: (code) => set({ pendingJoinCode: code }),
-      setRoomSession: (room, members, riders, layers, messages) =>
+      setRoomSession: (room, members, riders, layers, messages, activeAlert) =>
         set({
           activeRoom: room,
           roomMembers: members,
           riders,
           rideLayers: layers,
-          messages
+          messages,
+          activeAlert
         }),
       clearRoomSession: () =>
         set({
@@ -198,10 +205,18 @@ export const useAppStore = create<AppState>()(
           roomMembers: [],
           riders: [],
           rideLayers: [],
-          messages: []
+          messages: [],
+          activeAlert: null
         }),
       setRoomPresenceState: (roomPresenceState) => set({ roomPresenceState }),
       setRiders: (riders) => set({ riders }),
+      markRoomMessagesRead: (roomId, lastReadAt) =>
+        set((state) => ({
+          messageReadAtByRoom: {
+            ...state.messageReadAtByRoom,
+            [roomId]: lastReadAt ?? new Date().toISOString()
+          }
+        })),
       setVoiceSnapshot: (voiceSession, voiceParticipants) =>
         set({
           voiceSession,
@@ -225,9 +240,11 @@ export const useAppStore = create<AppState>()(
           riders: [],
           rideLayers: [],
           messages: [],
+          activeAlert: null,
           permissions: defaultPermissions,
           voiceSession: defaultVoiceSession,
-          voiceParticipants: {}
+          voiceParticipants: {},
+          messageReadAtByRoom: {}
         })
     }),
     {
@@ -238,7 +255,8 @@ export const useAppStore = create<AppState>()(
         hasSeenOnboarding: state.hasSeenOnboarding,
         profile: state.profile,
         permissions: state.permissions,
-        pendingJoinCode: state.pendingJoinCode
+        pendingJoinCode: state.pendingJoinCode,
+        messageReadAtByRoom: state.messageReadAtByRoom
       })
     }
   )

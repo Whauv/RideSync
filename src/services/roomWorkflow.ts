@@ -2,11 +2,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Linking from "expo-linking";
 import { Share } from "react-native";
 
+import { getQuickPingDefinition, formatMessageTime, recordCoordinationAudit, sendCoordinationNotification } from "@/services/coordination";
 import { AuthIdentity, RiderProfile } from "@/types/auth";
 import {
   CreateRoomInput,
+  QuickPingType,
   MemberReadiness,
   PresenceState,
+  RideAlertState,
   RideMessage,
   RideLayerMarker,
   RideRoom,
@@ -27,10 +30,6 @@ interface PersistedRooms {
 
 function nowIso() {
   return new Date().toISOString();
-}
-
-function formatClock(iso: string) {
-  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 function buildInviteLink(code: string) {
@@ -166,9 +165,34 @@ function buildSystemMessage(body: string, senderId: string, senderName: string):
     id: buildId("message"),
     senderId,
     senderName,
-    sentAt: formatClock(timestamp),
+    createdAt: timestamp,
+    sentAt: formatMessageTime(timestamp),
     kind: "system",
-    body
+    body,
+    severity: "normal"
+  };
+}
+
+function buildUserMessage(
+  kind: RideMessage["kind"],
+  authIdentity: AuthIdentity,
+  profile: RiderProfile,
+  body: string,
+  options?: Pick<RideMessage, "pingType" | "severity" | "metadata">
+): RideMessage {
+  const timestamp = nowIso();
+
+  return {
+    id: buildId("message"),
+    senderId: authIdentity.uid,
+    senderName: profile.riderName,
+    createdAt: timestamp,
+    sentAt: formatMessageTime(timestamp),
+    kind,
+    body,
+    pingType: options?.pingType,
+    severity: options?.severity ?? "normal",
+    metadata: options?.metadata
   };
 }
 
@@ -191,7 +215,8 @@ function hydrateRoomSnapshot(snapshot: RideRoomSnapshot): RideRoomSnapshot {
       ...snapshot.room,
       riderCount: snapshot.members.filter((member) => member.approvalStatus === "approved").length
     },
-    members: sortMembers(snapshot.members)
+    members: sortMembers(snapshot.members),
+    activeAlert: snapshot.activeAlert ?? null
   };
 }
 
@@ -222,7 +247,8 @@ export async function createRideRoom(input: CreateRoomInput, authIdentity: AuthI
     members: [leaderMember],
     riders: [],
     layers: [],
-    messages: [buildSystemMessage("Leader opened the room.", leaderMember.id, leaderMember.riderName)]
+    messages: [buildSystemMessage("Leader opened the room.", leaderMember.id, leaderMember.riderName)],
+    activeAlert: null
   });
 
   store.rooms = [snapshot, ...store.rooms.filter((item) => item.room.id !== snapshot.room.id)];
@@ -289,7 +315,8 @@ export async function joinRideRoom(payload: RoomJoinPayload, authIdentity: AuthI
         joinedName
       ),
       ...snapshot.messages
-    ]
+    ],
+    activeAlert: snapshot.activeAlert
   });
 
   store.rooms[targetIndex] = nextSnapshot;
@@ -301,6 +328,183 @@ export async function getRideRoomSnapshot(roomId: string) {
   const store = await readStore();
   const snapshot = store.rooms.find((item) => item.room.id === roomId);
   return snapshot ? hydrateRoomSnapshot(snapshot) : null;
+}
+
+export async function sendRoomMessage(roomId: string, authIdentity: AuthIdentity, profile: RiderProfile, body: string) {
+  const trimmed = body.trim();
+  if (!trimmed) {
+    throw new Error("Add a message before sending.");
+  }
+
+  return mutateRoom(roomId, (snapshot) => ({
+    ...snapshot,
+    messages: [buildUserMessage("message", authIdentity, profile, trimmed), ...snapshot.messages]
+  }));
+}
+
+export async function sendQuickPing(roomId: string, authIdentity: AuthIdentity, profile: RiderProfile, pingType: QuickPingType) {
+  const ping = getQuickPingDefinition(pingType);
+  const message = buildUserMessage("ping", authIdentity, profile, ping.label, {
+    pingType,
+    severity: ping.critical ? "critical" : ping.highPriority ? "high" : "normal"
+  });
+
+  const snapshot = await mutateRoom(roomId, (current) => ({
+    ...current,
+    messages: [message, ...current.messages],
+    activeAlert:
+      pingType === "emergency"
+        ? {
+            id: buildId("alert"),
+            kind: "emergency_ping",
+            status: "active",
+            triggeredByUserId: authIdentity.uid,
+            triggeredByName: profile.riderName,
+            detail: "Emergency ping issued to the room.",
+            createdAt: nowIso()
+          }
+        : current.activeAlert
+  }));
+
+  await recordCoordinationAudit({
+    id: buildId("audit"),
+    roomId,
+    type: "quick_ping",
+    createdAt: nowIso(),
+    actorUserId: authIdentity.uid,
+    actorName: profile.riderName,
+    messageId: message.id,
+    pingType,
+    note: ping.label
+  });
+
+  if (ping.highPriority || ping.critical) {
+    await sendCoordinationNotification({
+      title: `${profile.riderName}: ${ping.label}`,
+      body: ping.detail,
+      data: {
+        roomId,
+        kind: "ping",
+        pingType
+      }
+    });
+
+    await recordCoordinationAudit({
+      id: buildId("audit"),
+      roomId,
+      type: "notification_sent",
+      createdAt: nowIso(),
+      actorUserId: authIdentity.uid,
+      actorName: profile.riderName,
+      messageId: message.id,
+      pingType,
+      note: `Notification sent for ${ping.label}`
+    });
+  }
+
+  return snapshot;
+}
+
+export async function triggerSosAlert(
+  roomId: string,
+  authIdentity: AuthIdentity,
+  profile: RiderProfile,
+  countdownSeconds: number
+) {
+  const message = buildUserMessage("sos", authIdentity, profile, "SOS activated", {
+    severity: "critical",
+    metadata: {
+      countdownSeconds
+    }
+  });
+
+  const alert: RideAlertState = {
+    id: buildId("alert"),
+    kind: "sos",
+    status: "active",
+    triggeredByUserId: authIdentity.uid,
+    triggeredByName: profile.riderName,
+    detail: "Emergency escalation is active. Regroup and assess immediately.",
+    createdAt: nowIso()
+  };
+
+  const snapshot = await mutateRoom(roomId, (current) => ({
+    ...current,
+    messages: [message, ...current.messages],
+    activeAlert: alert
+  }));
+
+  await recordCoordinationAudit({
+    id: buildId("audit"),
+    roomId,
+    type: "sos_activated",
+    createdAt: nowIso(),
+    actorUserId: authIdentity.uid,
+    actorName: profile.riderName,
+    messageId: message.id,
+    alertId: alert.id,
+    note: "SOS alert activated"
+  });
+
+  await sendCoordinationNotification({
+    title: `SOS from ${profile.riderName}`,
+    body: "Emergency escalation is active for this room.",
+    data: {
+      roomId,
+      kind: "alert",
+      alertId: alert.id
+    }
+  });
+
+  await recordCoordinationAudit({
+    id: buildId("audit"),
+    roomId,
+    type: "notification_sent",
+    createdAt: nowIso(),
+    actorUserId: authIdentity.uid,
+    actorName: profile.riderName,
+    alertId: alert.id,
+    note: "Notification sent for SOS"
+  });
+
+  return snapshot;
+}
+
+export async function resolveActiveAlert(roomId: string, authIdentity: AuthIdentity, profile: RiderProfile) {
+  const snapshot = await mutateRoom(roomId, (snapshot) => {
+    if (!snapshot.activeAlert) {
+      return snapshot;
+    }
+
+    const resolvedAt = nowIso();
+    return {
+      ...snapshot,
+      activeAlert: {
+        ...snapshot.activeAlert,
+        status: "resolved",
+        resolvedAt
+      },
+      messages: [
+        buildSystemMessage(`${profile.riderName} resolved the active alert.`, authIdentity.uid, profile.riderName),
+        ...snapshot.messages
+      ]
+    };
+  });
+
+  if (snapshot.activeAlert) {
+    await recordCoordinationAudit({
+      id: buildId("audit"),
+      roomId,
+      type: snapshot.activeAlert.kind === "sos" ? "sos_resolved" : "quick_ping",
+      createdAt: nowIso(),
+      actorUserId: authIdentity.uid,
+      actorName: profile.riderName,
+      alertId: snapshot.activeAlert.id,
+      note: "Active alert resolved"
+    });
+  }
+
+  return snapshot;
 }
 
 export async function updateRoomMemberReadiness(roomId: string, userId: string, readiness: MemberReadiness) {
@@ -420,7 +624,8 @@ export async function clearActiveRideRoom(roomId: string) {
       lifecycle: "lobby"
     },
     riders: [],
-    layers: []
+    layers: [],
+    activeAlert: snapshot.activeAlert?.status === "active" ? { ...snapshot.activeAlert, status: "resolved", resolvedAt: nowIso() } : snapshot.activeAlert
   }));
 }
 

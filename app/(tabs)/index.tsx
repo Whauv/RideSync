@@ -2,6 +2,9 @@ import { AppState, StyleSheet, View } from "react-native";
 import { useEffect, useMemo, useState } from "react";
 import { router } from "expo-router";
 
+import { ActiveAlertBanner } from "@/components/coordination/ActiveAlertBanner";
+import { QuickActionsTray } from "@/components/coordination/QuickActionsTray";
+import { SOSModal } from "@/components/coordination/SOSModal";
 import { AppHeader } from "@/components/primitives/AppHeader";
 import { AppText } from "@/components/primitives/AppText";
 import { Button } from "@/components/primitives/Button";
@@ -19,15 +22,19 @@ import { RoomInviteCard } from "@/components/room/RoomInviteCard";
 import { LiveRideMap } from "@/components/ride/LiveRideMap";
 import { useSimulatedRideStream } from "@/features/ride-map/useSimulatedRideStream";
 import { useToast } from "@/providers/ToastProvider";
+import { QUICK_PINGS } from "@/services/coordination";
 import {
   approveRoomMember,
   clearActiveRideRoom,
   createRideRoom,
   joinRideRoom,
   removeRoomMember,
+  resolveActiveAlert,
+  sendQuickPing,
   setRoomLocked,
   shareRideRoomInvite,
   startRideRoom,
+  triggerSosAlert,
   updateRoomMemberIntercom,
   updateRoomMemberPresence,
   updateRoomMemberReadiness
@@ -48,11 +55,14 @@ export default function RideScreen() {
   const roomMembers = useAppStore((state) => state.roomMembers);
   const riders = useAppStore((state) => state.riders);
   const rideLayers = useAppStore((state) => state.rideLayers);
+  const messages = useAppStore((state) => state.messages);
   const leaderMusic = useAppStore((state) => state.leaderMusic);
   const roomPresenceState = useAppStore((state) => state.roomPresenceState);
   const permissions = useAppStore((state) => state.permissions);
   const voiceSession = useAppStore((state) => state.voiceSession);
   const voiceParticipants = useAppStore((state) => state.voiceParticipants);
+  const activeAlert = useAppStore((state) => state.activeAlert);
+  const messageReadAtByRoom = useAppStore((state) => state.messageReadAtByRoom);
   const setRoomPresenceState = useAppStore((state) => state.setRoomPresenceState);
   const setRoomSession = useAppStore((state) => state.setRoomSession);
   const setRiders = useAppStore((state) => state.setRiders);
@@ -64,6 +74,7 @@ export default function RideScreen() {
   const [routeTitle, setRouteTitle] = useState("");
   const [maxRiders, setMaxRiders] = useState(8);
   const [joinValue, setJoinValue] = useState("");
+  const [sosVisible, setSosVisible] = useState(false);
 
   const currentMember = useMemo(
     () => roomMembers.find((member) => member.userId === authIdentity?.uid) ?? null,
@@ -74,6 +85,14 @@ export default function RideScreen() {
   const approvedCount = roomMembers.filter((member) => member.approvalStatus === "approved").length;
   const pendingCount = roomMembers.filter((member) => member.approvalStatus === "pending").length;
   const readyCount = roomMembers.filter((member) => member.readiness === "ready" && member.approvalStatus === "approved").length;
+  const unreadCount = useMemo(() => {
+    if (!activeRoom) {
+      return 0;
+    }
+
+    const lastReadAt = messageReadAtByRoom[activeRoom.id];
+    return messages.filter((message) => !lastReadAt || message.createdAt > lastReadAt).length;
+  }, [activeRoom, messageReadAtByRoom, messages]);
 
   useSimulatedRideStream({
     enabled: activeRoom?.lifecycle === "rolling",
@@ -103,7 +122,7 @@ export default function RideScreen() {
       setRoomPresenceState(nextPresence);
 
       const snapshot = await updateRoomMemberPresence(activeRoom.id, authIdentity.uid, nextPresence);
-      setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages);
+      setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert);
     });
 
     return () => subscription.remove();
@@ -136,7 +155,7 @@ export default function RideScreen() {
         authIdentity,
         profile
       );
-      setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages);
+      setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert);
       showToast({
         title: "Room created",
         message: `${snapshot.room.title} is ready for riders to join.`,
@@ -162,7 +181,7 @@ export default function RideScreen() {
 
     try {
       const snapshot = await joinRideRoom({ value: joinValue }, authIdentity, profile);
-      setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages);
+      setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert);
       setPendingJoinCode(null);
       showToast({
         title: "Room joined",
@@ -197,7 +216,7 @@ export default function RideScreen() {
     }
 
     const snapshot = await action();
-    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages);
+    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert);
   }
 
   async function handleStartRide() {
@@ -206,7 +225,7 @@ export default function RideScreen() {
     }
 
     const snapshot = await startRideRoom(activeRoom.id);
-    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages);
+    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert);
     showToast({
       title: "Ride started",
       message: "The room moved from lobby to live ride mode.",
@@ -229,6 +248,39 @@ export default function RideScreen() {
       message: "Leader-priority voice routing is stubbed in UI and ready for transport policy wiring.",
       tone: "warning"
     });
+  }
+
+  async function handleQuickPing(type: (typeof QUICK_PINGS)[number]["type"]) {
+    if (!activeRoom || !authIdentity) {
+      return;
+    }
+
+    const snapshot = await sendQuickPing(activeRoom.id, authIdentity, profile, type);
+    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert);
+    showToast({
+      title: QUICK_PINGS.find((ping) => ping.type === type)?.label ?? "Ping sent",
+      message: "The room was updated immediately.",
+      tone: type === "emergency" || type === "hazard" ? "warning" : "success"
+    });
+  }
+
+  async function handleResolveAlert() {
+    if (!activeRoom || !authIdentity) {
+      return;
+    }
+
+    const snapshot = await resolveActiveAlert(activeRoom.id, authIdentity, profile);
+    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert);
+  }
+
+  async function handleConfirmSos(countdownSeconds: number) {
+    if (!activeRoom || !authIdentity) {
+      return;
+    }
+
+    setSosVisible(false);
+    const snapshot = await triggerSosAlert(activeRoom.id, authIdentity, profile, countdownSeconds);
+    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert);
   }
 
   if (!activeRoom) {
@@ -325,7 +377,10 @@ export default function RideScreen() {
           title={activeRoom.title}
         />
 
+        {activeAlert?.status === "active" ? <ActiveAlertBanner alert={activeAlert} onResolve={handleResolveAlert} /> : null}
+
         <LiveRideMap
+          activeAlert={activeAlert}
           canUseVoice={canUseVoice}
           isLeaderView={Boolean(isLeaderView)}
           layers={rideLayers}
@@ -336,6 +391,14 @@ export default function RideScreen() {
           room={activeRoom}
           voiceParticipants={voiceParticipants}
           voiceSession={voiceSession}
+        />
+
+        <QuickActionsTray
+          onOpenComms={() => router.push("/(tabs)/comms")}
+          onOpenSos={() => setSosVisible(true)}
+          onPing={handleQuickPing}
+          pingOptions={QUICK_PINGS}
+          unreadCount={unreadCount}
         />
 
         <View style={styles.metricsRow}>
@@ -373,10 +436,18 @@ export default function RideScreen() {
     <Screen scroll>
       <AppHeader
         eyebrow={`ROOM ${activeRoom.code}`}
-        right={<Chip label={activeRoom.locked ? "Locked" : "Open"} tone={activeRoom.locked ? "warning" : "success"} />}
+        right={
+          activeAlert?.status === "active" ? (
+            <Chip label="Alert active" tone="danger" />
+          ) : (
+            <Chip label={activeRoom.locked ? "Locked" : "Open"} tone={activeRoom.locked ? "warning" : "success"} />
+          )
+        }
         subtitle={`${activeRoom.routeTitle ?? "Route not set"} | ${approvedCount}/${activeRoom.maxRiders} approved riders`}
         title={activeRoom.title}
       />
+
+      {activeAlert?.status === "active" ? <ActiveAlertBanner alert={activeAlert} onResolve={handleResolveAlert} /> : null}
 
       <View style={styles.metricsRow}>
         <Surface raised style={styles.metricCard}>
@@ -431,6 +502,14 @@ export default function RideScreen() {
         voiceSession={voiceSession}
       />
 
+      <QuickActionsTray
+        onOpenComms={() => router.push("/(tabs)/comms")}
+        onOpenSos={() => setSosVisible(true)}
+        onPing={handleQuickPing}
+        pingOptions={QUICK_PINGS}
+        unreadCount={unreadCount}
+      />
+
       <View style={styles.memberStack}>
         {roomMembers.map((member) => (
           <LobbyMemberRow
@@ -478,6 +557,7 @@ export default function RideScreen() {
           </AppText>
         </Surface>
       )}
+      <SOSModal onCancel={() => setSosVisible(false)} onConfirm={handleConfirmSos} visible={sosVisible} />
     </Screen>
   );
 }
