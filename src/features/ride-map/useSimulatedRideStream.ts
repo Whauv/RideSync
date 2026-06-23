@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from "react";
 
+import { applyLeaderDistances } from "@/services/safety";
 import { RiderPresence, RiderSignalState } from "@/types/domain";
 
 interface UseSimulatedRideStreamOptions {
@@ -7,21 +8,38 @@ interface UseSimulatedRideStreamOptions {
   riders: RiderPresence[];
   onTick: (riders: RiderPresence[]) => void;
   degraded?: boolean;
+  reducedCadence?: boolean;
+  batterySaverMode?: boolean;
 }
 
 function normalizeHeading(value: number) {
   return (value + 360) % 360;
 }
 
-export function useSimulatedRideStream({ enabled, riders, onTick, degraded = false }: UseSimulatedRideStreamOptions) {
+export function useSimulatedRideStream({
+  enabled,
+  riders,
+  onTick,
+  degraded = false,
+  reducedCadence = false,
+  batterySaverMode = false
+}: UseSimulatedRideStreamOptions) {
   const intervalMs = useMemo(() => {
     const lowBattery = riders.some((rider) => rider.batteryPct <= 30);
+    if (batterySaverMode) {
+      return 7600;
+    }
+
+    if (reducedCadence) {
+      return 5400;
+    }
+
     if (degraded) {
       return 6200;
     }
 
     return lowBattery ? 4200 : 2600;
-  }, [degraded, riders]);
+  }, [batterySaverMode, degraded, reducedCadence, riders]);
 
   useEffect(() => {
     if (!enabled || riders.length === 0) {
@@ -30,7 +48,7 @@ export function useSimulatedRideStream({ enabled, riders, onTick, degraded = fal
 
     const timer = setInterval(() => {
       const timestamp = new Date().toISOString();
-      const nextRiders = riders.map((rider, index) => {
+      const nextRiders = applyLeaderDistances(riders.map((rider, index) => {
         const latOffset = 0.00055 + index * 0.00008;
         const lngOffset = 0.00044 + index * 0.00006;
         const headingShift = index % 2 === 0 ? 4 : -3;
@@ -47,7 +65,7 @@ export function useSimulatedRideStream({ enabled, riders, onTick, degraded = fal
           signalState,
           lastUpdatedAt: timestamp
         };
-      });
+      }));
 
       onTick(nextRiders);
     }, intervalMs);

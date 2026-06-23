@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Notifications from "expo-notifications";
 
+import { deviceNotifications } from "@/services/deviceNotifications";
+import { recordDiagnosticEvent } from "@/services/diagnostics";
 import { CoordinationAuditEvent, CoordinationNotificationPayload, PingDefinition } from "@/types/coordination";
 
 const AUDIT_STORAGE_KEY = "ridesync-coordination-audit";
@@ -79,27 +80,29 @@ export function formatMessageTime(iso: string) {
 }
 
 export async function configureCoordinationNotifications() {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false
-    })
+  await deviceNotifications.configure();
+
+  await recordDiagnosticEvent({
+    category: "notification",
+    level: "info",
+    title: "Notifications configured",
+    detail: "RideSync notification channels and handlers are ready."
   });
 }
 
 export async function sendCoordinationNotification(payload: CoordinationNotificationPayload) {
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: payload.title,
-      body: payload.body,
-      sound: "default",
-      priority: Notifications.AndroidNotificationPriority.MAX,
-      data: payload.data
-    },
-    trigger: null
+  await deviceNotifications.schedule(payload);
+
+  await recordDiagnosticEvent({
+    category: "notification",
+    level: payload.data.kind === "alert" || payload.data.kind === "sos" ? "warning" : "info",
+    title: "Notification scheduled",
+    detail: payload.title,
+    context: {
+      roomId: payload.data.roomId,
+      kind: payload.data.kind,
+      pingType: payload.data.pingType
+    }
   });
 }
 

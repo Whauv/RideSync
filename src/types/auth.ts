@@ -7,6 +7,15 @@ export interface EmergencyContact {
   phone: string;
 }
 
+export interface MedicalProfile {
+  bloodType: string;
+  allergies: string;
+  conditions: string;
+  medications: string;
+  notes: string;
+  shareWithRideLeaders: boolean;
+}
+
 export interface RiderProfile {
   riderName: string;
   bikeName: string;
@@ -15,6 +24,7 @@ export interface RiderProfile {
   preferredUnits: PreferredUnits;
   bikeBrand?: string;
   intercomBrand?: string;
+  medicalProfile: MedicalProfile;
 }
 
 export interface PermissionState {

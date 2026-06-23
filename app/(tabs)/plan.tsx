@@ -10,15 +10,18 @@ import { EmptyState } from "@/components/primitives/EmptyState";
 import { ListRow } from "@/components/primitives/ListRow";
 import { Screen } from "@/components/primitives/Screen";
 import { SegmentedControl } from "@/components/primitives/SegmentedControl";
+import { SkeletonLoader } from "@/components/primitives/SkeletonLoader";
 import { Surface } from "@/components/primitives/Surface";
 import { TextField } from "@/components/primitives/TextField";
 import {
   addRidePlanStop,
+  getRideRoomSnapshot,
   importRideRouteReference,
   shareRideBrief,
   updateRidePlan,
   updateRoomMemberRsvp
 } from "@/services/roomWorkflow";
+import { hapticSoftImpact, hapticSuccess } from "@/services/haptics";
 import { useAppStore } from "@/store/useAppStore";
 import { RideStopType, RiderRsvpStatus } from "@/types/domain";
 import { useToast } from "@/providers/ToastProvider";
@@ -63,6 +66,7 @@ export default function PlanScreen() {
   const [stopEta, setStopEta] = useState("45");
   const [stopType, setStopType] = useState<RideStopType>("fuel");
   const [briefVisible, setBriefVisible] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const currentMember = useMemo(
     () => roomMembers.find((member) => member.userId === authIdentity?.uid) ?? null,
@@ -90,7 +94,16 @@ export default function PlanScreen() {
 
   async function applySnapshot(action: Promise<Awaited<ReturnType<typeof updateRidePlan>>>) {
     const snapshot = await action;
-    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert, snapshot.ridePlan);
+    setRoomSession(
+      snapshot.room,
+      snapshot.members,
+      snapshot.riders,
+      snapshot.layers,
+      snapshot.messages,
+      snapshot.activeAlert,
+      snapshot.ridePlan,
+      snapshot.safety
+    );
   }
 
   async function handleSavePlan() {
@@ -109,6 +122,7 @@ export default function PlanScreen() {
       message: "Route brief and stop plan are synced to the room.",
       tone: "success"
     });
+    await hapticSuccess();
   }
 
   async function handleImportReference() {
@@ -128,6 +142,7 @@ export default function PlanScreen() {
       message: "Reference stored for the room plan.",
       tone: "success"
     });
+    await hapticSoftImpact();
   }
 
   async function handleAddStop() {
@@ -146,19 +161,58 @@ export default function PlanScreen() {
     setStopTitle("");
     setStopNote("");
     setStopEta("45");
+    await hapticSoftImpact();
   }
 
   async function handleRsvpChange(value: RiderRsvpStatus) {
     const snapshot = await updateRoomMemberRsvp(room.id, identity.uid, value);
-    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert, snapshot.ridePlan);
+    setRoomSession(
+      snapshot.room,
+      snapshot.members,
+      snapshot.riders,
+      snapshot.layers,
+      snapshot.messages,
+      snapshot.activeAlert,
+      snapshot.ridePlan,
+      snapshot.safety
+    );
+    await hapticSoftImpact();
   }
 
   async function handleShareBrief() {
+    await hapticSoftImpact();
     await shareRideBrief(room, plan, roomMembers);
   }
 
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      const snapshot = await getRideRoomSnapshot(room.id);
+      if (snapshot) {
+        setRoomSession(
+          snapshot.room,
+          snapshot.members,
+          snapshot.riders,
+          snapshot.layers,
+          snapshot.messages,
+          snapshot.activeAlert,
+          snapshot.ridePlan,
+          snapshot.safety
+        );
+        setRouteTitle(snapshot.ridePlan?.routeTitle ?? "");
+        setScheduledFor(snapshot.ridePlan?.scheduledFor ?? "");
+        setMeetupPoint(snapshot.ridePlan?.meetupPoint ?? "");
+        setNotes(snapshot.ridePlan?.notes ?? "");
+        setDistanceMiles(`${snapshot.ridePlan?.distanceMiles ?? 0}`);
+        setEtaMinutes(`${snapshot.ridePlan?.etaMinutes ?? 0}`);
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   return (
-    <Screen scroll>
+    <Screen onRefresh={handleRefresh} refreshing={refreshing} scroll>
       <AppHeader
         eyebrow="PLANNING"
         right={<Chip label={`${goingCount} going`} tone="success" />}
@@ -186,6 +240,13 @@ export default function PlanScreen() {
           </AppText>
         </Surface>
       </View>
+      {refreshing ? (
+        <Surface muted style={styles.loadingBlock}>
+          <SkeletonLoader width="36%" />
+          <SkeletonLoader />
+          <SkeletonLoader width="72%" />
+        </Surface>
+      ) : null}
 
       <Surface raised style={styles.panel}>
         <View style={styles.panelHeader}>
@@ -355,5 +416,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
     flexWrap: "wrap"
+  },
+  loadingBlock: {
+    padding: 16,
+    gap: 10,
+    marginBottom: 12
   }
 });

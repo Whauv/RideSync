@@ -15,6 +15,19 @@ export type RideAlertStatus = "active" | "resolved";
 export type RideStopType = "fuel" | "food" | "scenic" | "break" | "emergency_fallback";
 export type RouteImportType = "gpx_reference" | "route_reference";
 export type RiderRsvpStatus = "pending" | "going" | "late" | "cant_make_it";
+export type HazardSeverity = "advisory" | "caution" | "critical";
+export type HazardReportStatus = "reported" | "confirmed" | "dismissed";
+export type StragglerSeverity = "monitor" | "assist";
+export type FuelAlertLevel = "low" | "critical";
+export type RideEventType =
+  | "room_created"
+  | "room_started"
+  | "hazard_reported"
+  | "hazard_confirmed"
+  | "fuel_low"
+  | "sos"
+  | "ping"
+  | "system";
 
 export interface RiderPresence {
   id: string;
@@ -31,6 +44,8 @@ export interface RiderPresence {
   lastUpdatedAt: string;
   lat: number;
   lng: number;
+  distanceFromLeaderMiles?: number;
+  fuelRangeMiles?: number;
 }
 
 export interface RideLayerMarker {
@@ -73,6 +88,7 @@ export interface RoomMember {
   rsvpStatus: RiderRsvpStatus;
   presenceState: PresenceState;
   intercomState: IntercomState;
+  fuelRangeMiles?: number;
   joinedAt: string;
   lastSeenAt: string;
 }
@@ -138,6 +154,74 @@ export interface RideAlertState {
   resolvedAt?: string;
 }
 
+export interface StragglerAlert {
+  riderId: string;
+  riderName: string;
+  distanceMiles: number;
+  staleSeconds: number;
+  severity: StragglerSeverity;
+  detail: string;
+}
+
+export interface HazardReport {
+  id: string;
+  status: HazardReportStatus;
+  severity: HazardSeverity;
+  title: string;
+  note: string;
+  reporterUserId: string;
+  reporterName: string;
+  confirmations: string[];
+  confirmationNames: string[];
+  createdAt: string;
+  confirmedAt?: string;
+  lat: number;
+  lng: number;
+  layerId?: string;
+}
+
+export interface FuelAlert {
+  riderId: string;
+  riderName: string;
+  level: FuelAlertLevel;
+  rangeMiles: number;
+  createdAt: string;
+}
+
+export interface CrashDetectionSnapshot {
+  experimental: true;
+  enabled: boolean;
+  availability: "ready" | "unavailable" | "unsupported";
+  note: string;
+  lastSampleAt?: string;
+  lastMotionScore?: number;
+  lastEvent?: string;
+}
+
+export interface RideEventLog {
+  id: string;
+  type: RideEventType;
+  createdAt: string;
+  actorName: string;
+  detail: string;
+  replayLabel: string;
+}
+
+export interface RideInsightsSnapshot {
+  averageSpeedMph: number;
+  stopCount: number;
+  distanceMiles: number;
+  eventLog: RideEventLog[];
+}
+
+export interface SafetySnapshot {
+  stragglers: StragglerAlert[];
+  hazards: HazardReport[];
+  fuelAlerts: FuelAlert[];
+  crashDetection: CrashDetectionSnapshot;
+  insights: RideInsightsSnapshot;
+}
+
 export interface RoomJoinPayload {
   value: string;
 }
@@ -150,6 +234,7 @@ export interface RideRoomSnapshot {
   messages: RideMessage[];
   activeAlert: RideAlertState | null;
   ridePlan: RidePlan | null;
+  safety: SafetySnapshot;
 }
 
 export interface LeaderMusicState {

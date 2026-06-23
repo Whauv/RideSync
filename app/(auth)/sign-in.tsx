@@ -5,12 +5,14 @@ import { router } from "expo-router";
 import { AppHeader } from "@/components/primitives/AppHeader";
 import { AppText } from "@/components/primitives/AppText";
 import { Button } from "@/components/primitives/Button";
+import { Chip } from "@/components/primitives/Chip";
 import { Screen } from "@/components/primitives/Screen";
 import { SegmentedControl } from "@/components/primitives/SegmentedControl";
 import { Surface } from "@/components/primitives/Surface";
 import { TextField } from "@/components/primitives/TextField";
 import { useToast } from "@/providers/ToastProvider";
 import { signInWithEmail, signUpWithEmail } from "@/services/auth";
+import { isFirebaseConfigured } from "@/services/firebase";
 
 type AuthMode = "sign-in" | "sign-up";
 
@@ -79,6 +81,23 @@ export default function SignInScreen() {
 
         <Surface raised style={styles.panel}>
           <AppHeader title="Sign in or create account" subtitle="Firebase Auth backs the session and persists it across launches." />
+          {!isFirebaseConfigured ? (
+            <Surface muted style={styles.setupCard}>
+              <View style={styles.setupHeader}>
+                <Chip label="Setup required" tone="warning" />
+                <Chip label="Web auth blocked" tone="danger" />
+              </View>
+              <AppText variant="bodyStrong">Firebase is not configured for this local build.</AppText>
+              <AppText tone="secondary">
+                Create a `.env` file in the project root with your Firebase Web App values, then restart Expo.
+              </AppText>
+              <AppText tone="secondary">
+                Required keys: `EXPO_PUBLIC_FIREBASE_API_KEY`, `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN`,
+                `EXPO_PUBLIC_FIREBASE_PROJECT_ID`, `EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET`,
+                `EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `EXPO_PUBLIC_FIREBASE_APP_ID`
+              </AppText>
+            </Surface>
+          ) : null}
           <View style={styles.form}>
             <SegmentedControl
               onChange={setMode}
@@ -128,7 +147,12 @@ export default function SignInScreen() {
                 value={confirmPassword}
               />
             ) : null}
-            <Button label={mode === "sign-up" ? "Create account" : "Sign in"} loading={loading} onPress={handleSubmit} />
+            <Button
+              disabled={!isFirebaseConfigured}
+              label={mode === "sign-up" ? "Create account" : "Sign in"}
+              loading={loading}
+              onPress={handleSubmit}
+            />
           </View>
         </Surface>
       </KeyboardAvoidingView>
@@ -151,5 +175,15 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: 14
+  },
+  setupCard: {
+    padding: 14,
+    gap: 8,
+    marginBottom: 14
+  },
+  setupHeader: {
+    flexDirection: "row",
+    gap: 8,
+    flexWrap: "wrap"
   }
 });

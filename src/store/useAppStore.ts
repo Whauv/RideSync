@@ -3,8 +3,20 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import { AuthIdentity, PermissionState, RiderProfile } from "@/types/auth";
-import { LeaderMusicState, PresenceState, RideAlertState, RideLayerMarker, RideMessage, RidePlan, RideRoom, RiderPresence, RoomMember } from "@/types/domain";
+import {
+  LeaderMusicState,
+  PresenceState,
+  RideAlertState,
+  RideLayerMarker,
+  RideMessage,
+  RidePlan,
+  RideRoom,
+  RiderPresence,
+  RoomMember,
+  SafetySnapshot
+} from "@/types/domain";
 import { MusicSyncSnapshot } from "@/types/music";
+import { FeatureFlags, ReliabilitySnapshot, RuntimePreferences } from "@/types/runtime";
 import { VoiceParticipantState, VoiceSessionSnapshot } from "@/types/voice";
 
 type ThemeMode = "system" | "light" | "dark";
@@ -19,7 +31,15 @@ const defaultProfile: RiderProfile = {
   },
   preferredUnits: "imperial",
   bikeBrand: "",
-  intercomBrand: ""
+  intercomBrand: "",
+  medicalProfile: {
+    bloodType: "",
+    allergies: "",
+    conditions: "",
+    medications: "",
+    notes: "",
+    shareWithRideLeaders: true
+  }
 };
 
 const defaultPermissions: PermissionState = {
@@ -91,6 +111,42 @@ const defaultVoiceSession: VoiceSessionSnapshot = {
   errorMessage: null
 };
 
+const defaultRuntimePreferences: RuntimePreferences = {
+  batterySaverMode: false,
+  reducedGpsCadence: false
+};
+
+const defaultFeatureFlags: FeatureFlags = {
+  experimentalCrashDetection: true,
+  voiceLeaderAnnounce: true,
+  musicSyncDiagnostics: true,
+  developerDiagnostics: true
+};
+
+const defaultReliability: ReliabilitySnapshot = {
+  connectivity: "online",
+  recoveryState: "idle",
+  lastRoomSyncAt: null,
+  lastRecoveryAt: null,
+  lastRecoveryError: null
+};
+
+function normalizeProfile(profile: Partial<RiderProfile>): RiderProfile {
+  return {
+    ...defaultProfile,
+    ...profile,
+    emergencyContact: {
+      ...defaultProfile.emergencyContact,
+      ...profile.emergencyContact
+    },
+    medicalProfile: {
+      ...defaultProfile.medicalProfile,
+      ...profile.medicalProfile
+    },
+    avatarInitials: deriveInitials(profile.riderName ?? defaultProfile.riderName)
+  };
+}
+
 export function deriveInitials(name: string) {
   const parts = name
     .trim()
@@ -140,6 +196,11 @@ interface AppState {
   messages: RideMessage[];
   activeAlert: RideAlertState | null;
   ridePlan: RidePlan | null;
+  safety: SafetySnapshot | null;
+  lastActiveRoomId: string | null;
+  runtimePreferences: RuntimePreferences;
+  featureFlags: FeatureFlags;
+  reliability: ReliabilitySnapshot;
   messageReadAtByRoom: Record<string, string | null>;
   leaderMusic: LeaderMusicState;
   musicSync: MusicSyncSnapshot;
@@ -162,11 +223,20 @@ interface AppState {
     layers: RideLayerMarker[],
     messages: RideMessage[],
     activeAlert: RideAlertState | null,
-    ridePlan: RidePlan | null
+    ridePlan: RidePlan | null,
+    safety: SafetySnapshot
   ) => void;
   clearRoomSession: () => void;
   setRoomPresenceState: (presenceState: PresenceState) => void;
-  setRiders: (riders: RiderPresence[]) => void;
+  setRideTelemetry: (riders: RiderPresence[], safety: SafetySnapshot) => void;
+  setRuntimePreferences: (preferences: Partial<RuntimePreferences>) => void;
+  setFeatureFlag: <K extends keyof FeatureFlags>(key: K, value: FeatureFlags[K]) => void;
+  setConnectivityState: (connectivity: ReliabilitySnapshot["connectivity"]) => void;
+  setRecoveryState: (
+    recoveryState: ReliabilitySnapshot["recoveryState"],
+    options?: { lastRecoveryAt?: string | null; lastRecoveryError?: string | null }
+  ) => void;
+  markRoomSynced: (timestamp?: string) => void;
   markRoomMessagesRead: (roomId: string, lastReadAt?: string) => void;
   setMusicSyncSnapshot: (snapshot: MusicSyncSnapshot) => void;
   resetMusicSync: () => void;
@@ -197,6 +267,11 @@ export const useAppStore = create<AppState>()(
       messages: [],
       activeAlert: null,
       ridePlan: null,
+      safety: null,
+      lastActiveRoomId: null,
+      runtimePreferences: defaultRuntimePreferences,
+      featureFlags: defaultFeatureFlags,
+      reliability: defaultReliability,
       messageReadAtByRoom: {},
       leaderMusic: seededMusic,
       musicSync: defaultMusicSync,
@@ -209,22 +284,22 @@ export const useAppStore = create<AppState>()(
       completeOnboarding: () => set({ hasSeenOnboarding: true }),
       mergeProfile: (profile) =>
         set((state) => ({
-          profile: {
+          profile: normalizeProfile({
             ...state.profile,
             ...profile,
             emergencyContact: {
               ...state.profile.emergencyContact,
               ...profile.emergencyContact
             },
-            avatarInitials: deriveInitials(profile.riderName ?? state.profile.riderName)
-          }
+            medicalProfile: {
+              ...state.profile.medicalProfile,
+              ...profile.medicalProfile
+            }
+          })
         })),
       replaceProfile: (profile) =>
         set({
-          profile: {
-            ...profile,
-            avatarInitials: deriveInitials(profile.riderName)
-          }
+          profile: normalizeProfile(profile)
         }),
       updatePermission: (key, value) =>
         set((state) => ({
@@ -235,7 +310,7 @@ export const useAppStore = create<AppState>()(
         })),
       resetPermissions: () => set({ permissions: defaultPermissions }),
       setPendingJoinCode: (code) => set({ pendingJoinCode: code }),
-      setRoomSession: (room, members, riders, layers, messages, activeAlert, ridePlan) =>
+      setRoomSession: (room, members, riders, layers, messages, activeAlert, ridePlan, safety) =>
         set({
           activeRoom: room,
           roomMembers: members,
@@ -243,7 +318,18 @@ export const useAppStore = create<AppState>()(
           rideLayers: layers,
           messages,
           activeAlert,
-          ridePlan
+          ridePlan,
+          safety,
+          lastActiveRoomId: room.id,
+          reliability: {
+            ...defaultReliability,
+            ...defaultReliability,
+            connectivity: "online",
+            recoveryState: "restored",
+            lastRoomSyncAt: new Date().toISOString(),
+            lastRecoveryAt: new Date().toISOString(),
+            lastRecoveryError: null
+          }
         }),
       clearRoomSession: () =>
         set({
@@ -253,10 +339,50 @@ export const useAppStore = create<AppState>()(
           rideLayers: [],
           messages: [],
           activeAlert: null,
-          ridePlan: null
+          ridePlan: null,
+          safety: null
         }),
       setRoomPresenceState: (roomPresenceState) => set({ roomPresenceState }),
-      setRiders: (riders) => set({ riders }),
+      setRideTelemetry: (riders, safety) => set({ riders, safety }),
+      setRuntimePreferences: (preferences) =>
+        set((state) => ({
+          runtimePreferences: {
+            ...state.runtimePreferences,
+            ...preferences
+          }
+        })),
+      setFeatureFlag: (key, value) =>
+        set((state) => ({
+          featureFlags: {
+            ...state.featureFlags,
+            [key]: value
+          }
+        })),
+      setConnectivityState: (connectivity) =>
+        set((state) => ({
+          reliability: {
+            ...state.reliability,
+            connectivity
+          }
+        })),
+      setRecoveryState: (recoveryState, options) =>
+        set((state) => ({
+          reliability: {
+            ...state.reliability,
+            recoveryState,
+            lastRecoveryAt: options?.lastRecoveryAt ?? state.reliability.lastRecoveryAt,
+            lastRecoveryError:
+              options?.lastRecoveryError === undefined ? state.reliability.lastRecoveryError : options.lastRecoveryError
+          }
+        })),
+      markRoomSynced: (timestamp) =>
+        set((state) => ({
+          reliability: {
+            ...state.reliability,
+            lastRoomSyncAt: timestamp ?? new Date().toISOString(),
+            lastRecoveryError: null
+          }
+        })),
       markRoomMessagesRead: (roomId, lastReadAt) =>
         set((state) => ({
           messageReadAtByRoom: {
@@ -291,7 +417,12 @@ export const useAppStore = create<AppState>()(
           messages: [],
           activeAlert: null,
           ridePlan: null,
+          safety: null,
+          lastActiveRoomId: null,
           permissions: defaultPermissions,
+          runtimePreferences: defaultRuntimePreferences,
+          featureFlags: defaultFeatureFlags,
+          reliability: defaultReliability,
           musicSync: defaultMusicSync,
           voiceSession: defaultVoiceSession,
           voiceParticipants: {},
@@ -307,6 +438,13 @@ export const useAppStore = create<AppState>()(
         profile: state.profile,
         permissions: state.permissions,
         pendingJoinCode: state.pendingJoinCode,
+        lastActiveRoomId: state.lastActiveRoomId,
+        runtimePreferences: state.runtimePreferences,
+        featureFlags: state.featureFlags,
+        reliability: {
+          ...state.reliability,
+          recoveryState: "idle"
+        },
         messageReadAtByRoom: state.messageReadAtByRoom
       })
     }

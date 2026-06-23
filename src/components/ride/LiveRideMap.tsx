@@ -10,7 +10,7 @@ import { SegmentedControl } from "@/components/primitives/SegmentedControl";
 import { Surface } from "@/components/primitives/Surface";
 import { VoiceControlBar } from "@/components/voice/VoiceControlBar";
 import { useTheme } from "@/design/ThemeProvider";
-import { RideAlertState, RideLayerMarker, RideMapMode, RideRoom, RiderPresence } from "@/types/domain";
+import { FuelAlert, RideAlertState, RideLayerMarker, RideMapMode, RideRoom, RiderPresence, SafetySnapshot } from "@/types/domain";
 import { VoiceParticipantState, VoiceSessionSnapshot } from "@/types/voice";
 
 interface LiveRideMapProps {
@@ -18,10 +18,12 @@ interface LiveRideMapProps {
   riders: RiderPresence[];
   layers: RideLayerMarker[];
   activeAlert: RideAlertState | null;
+  safety: SafetySnapshot;
   voiceSession: VoiceSessionSnapshot;
   voiceParticipants: Record<string, VoiceParticipantState>;
   canUseVoice: boolean;
   isLeaderView?: boolean;
+  allowLeaderAnnounce?: boolean;
   onToggleMute: () => void;
   onRetryVoice: () => void;
   onLeaderAnnounce: () => void;
@@ -89,15 +91,25 @@ function layerIcon(type: RideLayerMarker["type"]) {
         : "map-marker-check";
 }
 
+function fuelAlertTone(alert?: FuelAlert) {
+  if (!alert) {
+    return "success";
+  }
+
+  return alert.level === "critical" ? "danger" : "warning";
+}
+
 export function LiveRideMap({
   room,
   riders,
   layers,
   activeAlert,
+  safety,
   voiceSession,
   voiceParticipants,
   canUseVoice,
   isLeaderView = false,
+  allowLeaderAnnounce = true,
   onToggleMute,
   onRetryVoice,
   onLeaderAnnounce
@@ -123,6 +135,8 @@ export function LiveRideMap({
 
   const mapStyle = getMapStyle(theme.mode, mapMode, theme);
   const rideStatusLayer = layers[0];
+  const topStraggler = safety.stragglers[0];
+  const topFuelAlert = safety.fuelAlerts[0];
 
   return (
     <>
@@ -287,7 +301,7 @@ export function LiveRideMap({
             </View>
             <View style={styles.hudMetrics}>
               <View>
-                <AppText variant="metric">67</AppText>
+                <AppText variant="metric">{safety.insights.averageSpeedMph || 0}</AppText>
                 <AppText variant="footnote" tone="secondary">
                   Avg mph
                 </AppText>
@@ -299,11 +313,37 @@ export function LiveRideMap({
                 </AppText>
               </View>
             </View>
+            <View style={styles.statusChips}>
+              <Chip
+                label={
+                  topStraggler
+                    ? `${topStraggler.riderName} ${topStraggler.distanceMiles.toFixed(1)} mi back`
+                    : "Pack spacing stable"
+                }
+                tone={topStraggler ? (topStraggler.severity === "assist" ? "warning" : "accent") : "success"}
+              />
+              <Chip
+                label={
+                  topFuelAlert
+                    ? `${topFuelAlert.riderName} ${Math.round(topFuelAlert.rangeMiles)} mi fuel`
+                    : "Fuel margin healthy"
+                }
+                tone={fuelAlertTone(topFuelAlert)}
+              />
+            </View>
             {activeAlert?.status === "active" ? (
               <View style={styles.alertRow}>
                 <Chip label={activeAlert.kind === "sos" ? "SOS ACTIVE" : "Emergency"} tone="danger" />
                 <AppText tone="inverse" variant="footnote">
                   {activeAlert.triggeredByName}
+                </AppText>
+              </View>
+            ) : null}
+            {safety.hazards[0] ? (
+              <View style={styles.alertRow}>
+                <Chip label={safety.hazards[0].status === "confirmed" ? "Hazard confirmed" : "Hazard pending"} tone="warning" />
+                <AppText tone="inverse" variant="footnote">
+                  {safety.hazards[0].title}
                 </AppText>
               </View>
             ) : null}
@@ -347,11 +387,12 @@ export function LiveRideMap({
               </View>
               <AppText variant="title3">Tap any rider marker for detail</AppText>
               <AppText variant="footnote" tone="secondary">
-                Marker details, distance from leader, signal health, and live voice status stay one step deeper.
+                Marker details, distance from leader, signal health, fuel margin, and live voice status stay one step deeper.
               </AppText>
             </Surface>
 
             <VoiceControlBar
+              allowLeaderAnnounce={allowLeaderAnnounce}
               canUseVoice={canUseVoice}
               isLeaderView={isLeaderView}
               onLeaderAnnounce={onLeaderAnnounce}
@@ -385,7 +426,7 @@ export function LiveRideMap({
                 <AppText variant="footnote" tone="secondary">
                   Distance from leader
                 </AppText>
-                <AppText variant="title2">{haversineMiles(leader, selectedRider).toFixed(1)} mi</AppText>
+                <AppText variant="title2">{(selectedRider.distanceFromLeaderMiles ?? haversineMiles(leader, selectedRider)).toFixed(1)} mi</AppText>
               </Surface>
             </View>
 
@@ -399,6 +440,15 @@ export function LiveRideMap({
                   Voice {voiceParticipants[selectedRider.id]?.isSpeaking ? "speaking" : voiceParticipants[selectedRider.id]?.isMuted ? "muted" : "listening"} |{" "}
                   {voiceParticipants[selectedRider.id]?.networkQuality} network
                 </AppText>
+              ) : null}
+              <AppText tone="secondary">
+                Fuel range: {typeof selectedRider.fuelRangeMiles === "number" ? `${Math.round(selectedRider.fuelRangeMiles)} mi remaining` : "Not reported yet"}
+              </AppText>
+              {safety.stragglers.find((alert) => alert.riderId === selectedRider.id) ? (
+                <Chip
+                  label={safety.stragglers.find((alert) => alert.riderId === selectedRider.id)?.detail ?? "Formation monitor"}
+                  tone={safety.stragglers.find((alert) => alert.riderId === selectedRider.id)?.severity === "assist" ? "warning" : "accent"}
+                />
               ) : null}
               <AppText tone="secondary">Battery estimate placeholder: {selectedRider.batteryPct}% remaining</AppText>
               <AppText tone="secondary">Last update {new Date(selectedRider.lastUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</AppText>
@@ -486,6 +536,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     gap: 18
+  },
+  statusChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
   },
   alertRow: {
     flexDirection: "row",

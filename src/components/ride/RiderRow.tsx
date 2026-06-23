@@ -27,6 +27,7 @@ export function RiderRow({ rider }: RiderRowProps) {
         </View>
         <AppText variant="callout" tone="secondary">
           {rider.bike}
+          {typeof rider.distanceFromLeaderMiles === "number" ? ` | ${rider.distanceFromLeaderMiles.toFixed(1)} mi from lead` : ""}
         </AppText>
       </View>
       <View style={styles.meta}>
@@ -35,7 +36,7 @@ export function RiderRow({ rider }: RiderRowProps) {
           <AppText variant="title3">{rider.speedMph}</AppText>
         </View>
         <AppText variant="footnote" tone="tertiary">
-          mph
+          {typeof rider.fuelRangeMiles === "number" ? `${Math.round(rider.fuelRangeMiles)} mi fuel` : "mph"}
         </AppText>
       </View>
     </View>

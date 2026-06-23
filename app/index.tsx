@@ -1,5 +1,5 @@
 import { Redirect } from "expo-router";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, Platform, View } from "react-native";
 
 import { AppText } from "@/components/primitives/AppText";
 import { Screen } from "@/components/primitives/Screen";
@@ -23,6 +23,10 @@ export default function Index() {
         </View>
       </Screen>
     );
+  }
+
+  if (Platform.OS === "web" && !authIdentity) {
+    return <Redirect href="/marketing" />;
   }
 
   if (!hasSeenOnboarding) {

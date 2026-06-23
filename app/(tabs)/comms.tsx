@@ -11,10 +11,12 @@ import { AppText } from "@/components/primitives/AppText";
 import { Button } from "@/components/primitives/Button";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { Screen } from "@/components/primitives/Screen";
+import { SkeletonLoader } from "@/components/primitives/SkeletonLoader";
 import { Surface } from "@/components/primitives/Surface";
 import { TextField } from "@/components/primitives/TextField";
 import { QUICK_PINGS } from "@/services/coordination";
-import { resolveActiveAlert, sendQuickPing, sendRoomMessage, triggerSosAlert } from "@/services/roomWorkflow";
+import { hapticSoftImpact, hapticSuccess, hapticWarning } from "@/services/haptics";
+import { getRideRoomSnapshot, resolveActiveAlert, sendQuickPing, sendRoomMessage, triggerSosAlert } from "@/services/roomWorkflow";
 import { useAppStore } from "@/store/useAppStore";
 
 export default function CommsScreen() {
@@ -30,6 +32,7 @@ export default function CommsScreen() {
   const [draft, setDraft] = useState("");
   const [sosVisible, setSosVisible] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const roomReadAt = activeRoom ? messageReadAtByRoom[activeRoom.id] ?? null : null;
   const chronologicalMessages = useMemo(() => [...messages].reverse(), [messages]);
@@ -71,7 +74,16 @@ export default function CommsScreen() {
     action: ReturnType<typeof sendRoomMessage> | ReturnType<typeof sendQuickPing> | ReturnType<typeof triggerSosAlert> | ReturnType<typeof resolveActiveAlert>
   ) {
     const snapshot = await action;
-    setRoomSession(snapshot.room, snapshot.members, snapshot.riders, snapshot.layers, snapshot.messages, snapshot.activeAlert, snapshot.ridePlan);
+    setRoomSession(
+      snapshot.room,
+      snapshot.members,
+      snapshot.riders,
+      snapshot.layers,
+      snapshot.messages,
+      snapshot.activeAlert,
+      snapshot.ridePlan,
+      snapshot.safety
+    );
   }
 
   async function handleSend() {
@@ -84,6 +96,7 @@ export default function CommsScreen() {
     try {
       await refreshFromSnapshot(sendRoomMessage(room.id, identity, profile, draft));
       setDraft("");
+      await hapticSoftImpact();
     } finally {
       setBusy(false);
     }
@@ -91,19 +104,49 @@ export default function CommsScreen() {
 
   async function handlePing(type: (typeof QUICK_PINGS)[number]["type"]) {
     await refreshFromSnapshot(sendQuickPing(room.id, identity, profile, type));
+    if (type === "emergency" || type === "hazard") {
+      await hapticWarning();
+      return;
+    }
+
+    await hapticSoftImpact();
   }
 
   async function handleConfirmSos(countdownSeconds: number) {
     setSosVisible(false);
     await refreshFromSnapshot(triggerSosAlert(room.id, identity, profile, countdownSeconds));
+    await hapticWarning();
   }
 
   async function handleResolveAlert() {
     await refreshFromSnapshot(resolveActiveAlert(room.id, identity, profile));
+    await hapticSuccess();
+  }
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      const snapshot = await getRideRoomSnapshot(room.id);
+      if (snapshot) {
+        setRoomSession(
+          snapshot.room,
+          snapshot.members,
+          snapshot.riders,
+          snapshot.layers,
+          snapshot.messages,
+          snapshot.activeAlert,
+          snapshot.ridePlan,
+          snapshot.safety
+        );
+        await hapticSoftImpact();
+      }
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   return (
-    <Screen scroll>
+    <Screen onRefresh={handleRefresh} refreshing={refreshing} scroll>
       <AppHeader
         eyebrow="COORDINATION"
         subtitle="Fast signals, compact room chat, and unmistakable emergency state when the ride needs clarity now."
@@ -136,6 +179,20 @@ export default function CommsScreen() {
         </View>
 
         <View style={styles.messageList}>
+          {refreshing ? (
+            <Surface muted style={styles.loadingCard}>
+              <SkeletonLoader width="42%" />
+              <SkeletonLoader />
+              <SkeletonLoader width="68%" />
+            </Surface>
+          ) : null}
+          {chronologicalMessages.length === 0 ? (
+            <EmptyState
+              body="The ride feed stays intentionally sparse until someone sends context, confirms a status, or triggers a quick action."
+              icon="message-text-outline"
+              title="No messages yet"
+            />
+          ) : null}
           {chronologicalMessages.map((message, index) => {
             const previous = chronologicalMessages[index - 1];
             const showSender = !previous || previous.senderId !== message.senderId || previous.kind !== message.kind;
@@ -186,6 +243,10 @@ const styles = StyleSheet.create({
   },
   messageList: {
     gap: 12
+  },
+  loadingCard: {
+    padding: 14,
+    gap: 10
   },
   composer: {
     padding: 16,

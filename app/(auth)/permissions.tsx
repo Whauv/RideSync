@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { router } from "expo-router";
 
 import { AppHeader } from "@/components/primitives/AppHeader";
+import { WebDevModeCard } from "@/components/dev/WebDevModeCard";
 import { AppText } from "@/components/primitives/AppText";
 import { Button } from "@/components/primitives/Button";
 import { Chip } from "@/components/primitives/Chip";
@@ -10,6 +11,7 @@ import { PermissionStateCard } from "@/components/primitives/PermissionStateCard
 import { Screen } from "@/components/primitives/Screen";
 import { Surface } from "@/components/primitives/Surface";
 import { useToast } from "@/providers/ToastProvider";
+import { trackEvent } from "@/services/analytics";
 import {
   openSystemSettings,
   prepareAudioSession,
@@ -47,6 +49,17 @@ export default function PermissionsScreen() {
 
   const readyForApp = useMemo(() => hasCorePermissions(permissions), [permissions]);
 
+  useEffect(() => {
+    void Promise.all(
+      (Object.keys(permissionCopy) as (keyof typeof permissionCopy)[]).map((key) =>
+        trackEvent("permission_prompt_shown", {
+          permission_type: key,
+          context: "auth_onboarding"
+        })
+      )
+    );
+  }, []);
+
   async function runPermissionRequest(key: keyof typeof permissionCopy) {
     setLoadingKey(key);
 
@@ -61,6 +74,10 @@ export default function PermissionsScreen() {
               : await prepareAudioSession();
 
       updatePermission(key, status);
+      await trackEvent("permission_result", {
+        permission_type: key,
+        result: status
+      });
 
       if (status === "granted") {
         showToast({
@@ -97,6 +114,8 @@ export default function PermissionsScreen() {
         subtitle="Explain the why clearly, then let riders recover from denial without dead ends."
         title="Device readiness"
       />
+
+      <WebDevModeCard />
 
       <View style={styles.stack}>
         {(Object.keys(permissionCopy) as (keyof typeof permissionCopy)[]).map((key) => {

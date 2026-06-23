@@ -7,6 +7,10 @@ import { AuthBootstrap } from "@/providers/AuthBootstrap";
 import { ThemeProvider } from "@/design/ThemeProvider";
 import { NotificationBootstrap } from "@/features/coordination/NotificationBootstrap";
 import { MusicBootstrap } from "@/features/music/MusicBootstrap";
+import { ResilienceBootstrap } from "@/features/resilience/ResilienceBootstrap";
+import { AnalyticsBootstrap } from "@/providers/AnalyticsBootstrap";
+import { DevelopmentSurfaceBootstrap } from "@/providers/DevelopmentSurfaceBootstrap";
+import { MonitoringBoundary } from "@/providers/MonitoringBoundary";
 import { VoiceBootstrap } from "@/features/voice/VoiceBootstrap";
 import { ToastProvider } from "@/providers/ToastProvider";
 
@@ -31,9 +35,17 @@ export function AppProviders({ children }: PropsWithChildren) {
             <NotificationBootstrap>
               <ToastProvider>
                 <AuthBootstrap>
-                  <VoiceBootstrap>
-                    <MusicBootstrap>{children}</MusicBootstrap>
-                  </VoiceBootstrap>
+                  <AnalyticsBootstrap>
+                    <DevelopmentSurfaceBootstrap>
+                      <ResilienceBootstrap>
+                        <VoiceBootstrap>
+                          <MusicBootstrap>
+                            <MonitoringBoundary>{children}</MonitoringBoundary>
+                          </MusicBootstrap>
+                        </VoiceBootstrap>
+                      </ResilienceBootstrap>
+                    </DevelopmentSurfaceBootstrap>
+                  </AnalyticsBootstrap>
                 </AuthBootstrap>
               </ToastProvider>
             </NotificationBootstrap>

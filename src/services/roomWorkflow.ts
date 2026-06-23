@@ -3,9 +3,14 @@ import * as Linking from "expo-linking";
 import { Share } from "react-native";
 
 import { getQuickPingDefinition, formatMessageTime, recordCoordinationAudit, sendCoordinationNotification } from "@/services/coordination";
+import { recordDiagnosticEvent } from "@/services/diagnostics";
+import { trackEvent } from "@/services/analytics";
+import { captureError, finishTrace, startTrace } from "@/services/monitoring";
+import { applyLeaderDistances, buildCrashDetectionPlaceholder, buildSafetySnapshot } from "@/services/safety";
 import { AuthIdentity, RiderProfile } from "@/types/auth";
 import {
   CreateRoomInput,
+  HazardSeverity,
   QuickPingType,
   MemberReadiness,
   PresenceState,
@@ -108,22 +113,25 @@ function buildRidePresence(members: RoomMember[]): RiderPresence[] {
   const approvedMembers = members.filter((member) => member.approvalStatus === "approved");
   const timestamp = nowIso();
 
-  return approvedMembers.map((member, index) => ({
-    id: member.id,
-    name: member.riderName,
-    role: member.role,
-    bike: member.bikeName,
-    speedMph: member.role === "leader" ? 66 : 62 + (index % 3) * 2,
-    headingDeg: 102 + index,
-    status: "rolling",
-    isTalking: member.role === "leader",
-    hasMusicSync: member.intercomState === "connected",
-    batteryPct: 80 - index * 7,
-    signalState: index === 0 ? "strong" : index === 1 ? "moderate" : "weak",
-    lastUpdatedAt: timestamp,
-    lat: ROOM_BASE_LAT + index * 0.004,
-    lng: ROOM_BASE_LNG + index * 0.006
-  }));
+  return applyLeaderDistances(
+    approvedMembers.map((member, index) => ({
+      id: member.id,
+      name: member.riderName,
+      role: member.role,
+      bike: member.bikeName,
+      speedMph: member.role === "leader" ? 66 : 62 + (index % 3) * 2,
+      headingDeg: 102 + index,
+      status: "rolling",
+      isTalking: member.role === "leader",
+      hasMusicSync: member.intercomState === "connected",
+      batteryPct: 80 - index * 7,
+      signalState: index === 0 ? "strong" : index === 1 ? "moderate" : "weak",
+      lastUpdatedAt: timestamp,
+      lat: ROOM_BASE_LAT + index * 0.004,
+      lng: ROOM_BASE_LNG + index * 0.006,
+      fuelRangeMiles: member.fuelRangeMiles ?? 110 - index * 12
+    }))
+  );
 }
 
 function buildRideLayers(room: RideRoom): RideLayerMarker[] {
@@ -252,19 +260,41 @@ function sortMembers(members: RoomMember[]) {
 }
 
 function hydrateRoomSnapshot(snapshot: RideRoomSnapshot): RideRoomSnapshot {
-  return {
+  const normalized = {
     ...snapshot,
     room: {
       ...snapshot.room,
       riderCount: snapshot.members.filter((member) => member.approvalStatus === "approved").length
     },
     members: sortMembers(snapshot.members),
+    riders: applyLeaderDistances(snapshot.riders),
     activeAlert: snapshot.activeAlert ?? null,
-    ridePlan: snapshot.ridePlan ?? buildDefaultRidePlan(snapshot.room)
+    ridePlan: snapshot.ridePlan ?? buildDefaultRidePlan(snapshot.room),
+    safety: snapshot.safety ?? {
+      stragglers: [],
+      hazards: [],
+      fuelAlerts: [],
+      crashDetection: buildCrashDetectionPlaceholder(),
+      insights: {
+        averageSpeedMph: 0,
+        stopCount: 0,
+        distanceMiles: snapshot.ridePlan?.distanceMiles ?? 0,
+        eventLog: []
+      }
+    }
+  } satisfies RideRoomSnapshot;
+
+  return {
+    ...normalized,
+    safety: buildSafetySnapshot(normalized, normalized.safety)
   };
 }
 
 export async function createRideRoom(input: CreateRoomInput, authIdentity: AuthIdentity, profile: RiderProfile) {
+  const trace = startTrace("room_create");
+  await trackEvent("room_create_started", {
+    entry_point: "ride_tab"
+  });
   const store = await readStore();
   const code = buildCode();
   const leaderMember = buildMember(authIdentity, profile, "leader", "approved");
@@ -293,33 +323,71 @@ export async function createRideRoom(input: CreateRoomInput, authIdentity: AuthI
     layers: [],
     messages: [buildSystemMessage("Leader opened the room.", leaderMember.id, leaderMember.riderName)],
     activeAlert: null,
-    ridePlan: buildDefaultRidePlan(room)
+    ridePlan: buildDefaultRidePlan(room),
+    safety: {
+      stragglers: [],
+      hazards: [],
+      fuelAlerts: [],
+      crashDetection: buildCrashDetectionPlaceholder(),
+      insights: {
+        averageSpeedMph: 0,
+        stopCount: 0,
+        distanceMiles: 118,
+        eventLog: []
+      }
+    }
   });
 
   store.rooms = [snapshot, ...store.rooms.filter((item) => item.room.id !== snapshot.room.id)];
   await writeStore(store);
+  await finishTrace(trace, { roomId: snapshot.room.id });
+  await trackEvent("room_created", {
+    voice_provider: snapshot.room.voiceProvider,
+    music_mode: "metadata_sync",
+    room_id: snapshot.room.id
+  });
   return snapshot;
 }
 
 export async function joinRideRoom(payload: RoomJoinPayload, authIdentity: AuthIdentity, profile: RiderProfile) {
+  const trace = startTrace("room_join");
+  await trackEvent("room_join_started", {
+    join_method: payload.value.includes("http") || payload.value.includes("://") ? "link" : "code"
+  });
   const code = parseJoinValue(payload.value);
   if (!code) {
+    await trackEvent("room_join_failed", {
+      join_method: "invalid",
+      error_code: "invalid_code"
+    });
     throw new Error("Enter a valid room code or invite link.");
   }
 
   const store = await readStore();
   const targetIndex = store.rooms.findIndex((snapshot) => snapshot.room.code === code);
   if (targetIndex < 0) {
+    await trackEvent("room_join_failed", {
+      join_method: "code",
+      error_code: "room_not_found"
+    });
     throw new Error("No room matches that code.");
   }
 
   const snapshot = store.rooms[targetIndex];
   if (snapshot.room.locked) {
+    await trackEvent("room_join_failed", {
+      join_method: "code",
+      error_code: "room_locked"
+    });
     throw new Error("This room is locked.");
   }
 
   const currentMembers = snapshot.members.filter((member) => member.approvalStatus !== "pending" || member.userId !== authIdentity.uid);
   if (snapshot.members.filter((member) => member.approvalStatus === "approved").length >= snapshot.room.maxRiders) {
+    await trackEvent("room_join_failed", {
+      join_method: "code",
+      error_code: "room_full"
+    });
     throw new Error("This room is full.");
   }
 
@@ -362,11 +430,18 @@ export async function joinRideRoom(payload: RoomJoinPayload, authIdentity: AuthI
       ...snapshot.messages
     ],
     activeAlert: snapshot.activeAlert,
-    ridePlan: snapshot.ridePlan
+    ridePlan: snapshot.ridePlan,
+    safety: snapshot.safety
   });
 
   store.rooms[targetIndex] = nextSnapshot;
   await writeStore(store);
+  const durationMs = await finishTrace(trace, { roomId: nextSnapshot.room.id });
+  await trackEvent("room_join_succeeded", {
+    join_method: payload.value.includes("http") || payload.value.includes("://") ? "link" : "code",
+    join_duration_ms: durationMs,
+    role: joinedMember?.role ?? "rider"
+  });
   return nextSnapshot;
 }
 
@@ -374,6 +449,13 @@ export async function getRideRoomSnapshot(roomId: string) {
   const store = await readStore();
   const snapshot = store.rooms.find((item) => item.room.id === roomId);
   return snapshot ? hydrateRoomSnapshot(snapshot) : null;
+}
+
+export async function listRideRoomSnapshots() {
+  const store = await readStore();
+  return store.rooms
+    .map((snapshot) => hydrateRoomSnapshot(snapshot))
+    .sort((left, right) => Date.parse(right.room.createdAt) - Date.parse(left.room.createdAt));
 }
 
 export async function updateRidePlan(roomId: string, partial: Partial<RidePlan>) {
@@ -384,7 +466,8 @@ export async function updateRidePlan(roomId: string, partial: Partial<RidePlan>)
           ...snapshot.ridePlan,
           ...partial
         }
-      : null
+      : null,
+    safety: snapshot.safety
   }));
 }
 
@@ -402,7 +485,8 @@ export async function addRidePlanStop(roomId: string, stop: Omit<RidePlanStop, "
             }
           ]
         }
-      : null
+      : null,
+    safety: snapshot.safety
   }));
 }
 
@@ -421,7 +505,8 @@ export async function importRideRouteReference(roomId: string, hook: Omit<RidePl
             ...snapshot.ridePlan.imports
           ]
         }
-      : null
+      : null,
+    safety: snapshot.safety
   }));
 }
 
@@ -436,6 +521,29 @@ export async function updateRoomMemberRsvp(roomId: string, userId: string, rsvpS
             lastSeenAt: nowIso()
           }
         : member
+    )
+  }));
+}
+
+export async function updateRiderFuelRange(roomId: string, userId: string, fuelRangeMiles: number) {
+  return mutateRoom(roomId, (snapshot) => ({
+    ...snapshot,
+    members: snapshot.members.map((member) =>
+      member.userId === userId
+        ? {
+            ...member,
+            fuelRangeMiles,
+            lastSeenAt: nowIso()
+          }
+        : member
+    ),
+    riders: snapshot.riders.map((rider) =>
+      snapshot.members.find((member) => member.id === rider.id)?.userId === userId
+        ? {
+            ...rider,
+            fuelRangeMiles
+          }
+        : rider
     )
   }));
 }
@@ -512,6 +620,11 @@ export async function sendQuickPing(roomId: string, authIdentity: AuthIdentity, 
     });
   }
 
+  await trackEvent("quick_action_sent", {
+    action_type: pingType,
+    role: "rider"
+  });
+
   return snapshot;
 }
 
@@ -554,6 +667,11 @@ export async function triggerSosAlert(
     messageId: message.id,
     alertId: alert.id,
     note: "SOS alert activated"
+  });
+
+  await trackEvent("sos_triggered", {
+    role: "rider",
+    battery_bucket: "unknown"
   });
 
   await sendCoordinationNotification({
@@ -611,6 +729,12 @@ export async function resolveActiveAlert(roomId: string, authIdentity: AuthIdent
       actorName: profile.riderName,
       alertId: snapshot.activeAlert.id,
       note: "Active alert resolved"
+    });
+  }
+
+  if (snapshot.activeAlert?.kind === "sos") {
+    await trackEvent("sos_cleared", {
+      resolution_type: "resolved"
     });
   }
 
@@ -696,7 +820,7 @@ export async function removeRoomMember(roomId: string, memberId: string) {
 }
 
 export async function setRoomLocked(roomId: string, locked: boolean) {
-  return mutateRoom(roomId, (snapshot) => ({
+  const snapshot = await mutateRoom(roomId, (snapshot) => ({
     ...snapshot,
     room: {
       ...snapshot.room,
@@ -707,10 +831,21 @@ export async function setRoomLocked(roomId: string, locked: boolean) {
       ...snapshot.messages
     ]
   }));
+
+  await sendCoordinationNotification({
+    title: locked ? "Room locked" : "Room reopened",
+    body: locked ? "Leader locked new room entries while the pack gets organized." : "Leader reopened room entry for riders.",
+    data: {
+      roomId,
+      kind: "system"
+    }
+  });
+
+  return snapshot;
 }
 
 export async function startRideRoom(roomId: string) {
-  return mutateRoom(roomId, (snapshot) => ({
+  const snapshot = await mutateRoom(roomId, (snapshot) => ({
     ...snapshot,
     room: {
       ...snapshot.room,
@@ -724,6 +859,171 @@ export async function startRideRoom(roomId: string) {
       ...snapshot.messages
     ]
   }));
+
+  await sendCoordinationNotification({
+    title: `${snapshot.room.title} started`,
+    body: "Live ride tracking and room voice are now active.",
+    data: {
+      roomId,
+      kind: "system"
+    }
+  });
+
+  await recordDiagnosticEvent({
+    category: "room",
+    level: "info",
+    title: "Ride started",
+    detail: `${snapshot.room.title} moved into rolling mode.`,
+    context: {
+      roomId
+    }
+  });
+
+  await trackEvent("ride_session_started", {
+    rider_count: snapshot.room.riderCount
+  });
+
+  return snapshot;
+}
+
+export async function reportHazard(
+  roomId: string,
+  authIdentity: AuthIdentity,
+  profile: RiderProfile,
+  input: {
+    title: string;
+    note: string;
+    severity: HazardSeverity;
+    lat?: number;
+    lng?: number;
+  }
+) {
+  const timestamp = nowIso();
+
+  const snapshot = await mutateRoom(roomId, (snapshot) => {
+    const leadRider = snapshot.riders.find((rider) => rider.role === "leader") ?? snapshot.riders[0];
+    const layerId = buildId("hazard-layer");
+    const hazardId = buildId("hazard");
+    const lat = input.lat ?? leadRider?.lat ?? ROOM_BASE_LAT;
+    const lng = input.lng ?? leadRider?.lng ?? ROOM_BASE_LNG;
+
+    return {
+      ...snapshot,
+      layers: [
+        {
+          id: layerId,
+          type: "hazard",
+          title: input.title.trim(),
+          subtitle: `Reported by ${profile.riderName} | awaiting confirmation`,
+          lat,
+          lng
+        },
+        ...snapshot.layers
+      ],
+      messages: [
+        buildUserMessage("ping", authIdentity, profile, `Hazard reported: ${input.title.trim()}`, {
+          pingType: "hazard",
+          severity: input.severity === "critical" ? "critical" : "high",
+          metadata: {
+            actorRole: "rider"
+          }
+        }),
+        ...snapshot.messages
+      ],
+      safety: {
+        ...snapshot.safety,
+        hazards: [
+          {
+            id: hazardId,
+            status: "reported",
+            severity: input.severity,
+            title: input.title.trim(),
+            note: input.note.trim(),
+            reporterUserId: authIdentity.uid,
+            reporterName: profile.riderName,
+            confirmations: [authIdentity.uid],
+            confirmationNames: [profile.riderName],
+            createdAt: timestamp,
+            lat,
+            lng,
+            layerId
+          },
+          ...snapshot.safety.hazards
+        ]
+      }
+    };
+  });
+
+  await sendCoordinationNotification({
+    title: `Hazard reported: ${input.title.trim()}`,
+    body: input.note.trim() || "Open the room to confirm the road condition.",
+    data: {
+      roomId,
+      kind: "ping",
+      pingType: "hazard"
+    }
+  });
+
+  await recordDiagnosticEvent({
+    category: "room",
+    level: input.severity === "critical" ? "warning" : "info",
+    title: "Hazard report created",
+    detail: input.title.trim(),
+    context: {
+      roomId,
+      severity: input.severity
+    }
+  });
+
+  return snapshot;
+}
+
+export async function confirmHazardReport(roomId: string, hazardId: string, authIdentity: AuthIdentity, profile: RiderProfile) {
+  return mutateRoom(roomId, (snapshot) => {
+    const target = snapshot.safety.hazards.find((hazard) => hazard.id === hazardId);
+    if (!target) {
+      return snapshot;
+    }
+
+    const alreadyConfirmed = target.confirmations.includes(authIdentity.uid);
+    const confirmationNames = alreadyConfirmed ? target.confirmationNames : [...target.confirmationNames, profile.riderName];
+    const confirmations = alreadyConfirmed ? target.confirmations : [...target.confirmations, authIdentity.uid];
+    const confirmed = confirmations.length >= 2;
+
+    return {
+      ...snapshot,
+      layers: snapshot.layers.map((layer) =>
+        layer.id === target.layerId
+          ? {
+              ...layer,
+              subtitle: confirmed
+                ? `Confirmed by ${confirmationNames.length} riders`
+                : `Reported by ${target.reporterName} | awaiting one more confirmation`
+            }
+          : layer
+      ),
+      messages: confirmed
+        ? [
+            buildSystemMessage(`${profile.riderName} confirmed hazard: ${target.title}.`, authIdentity.uid, profile.riderName),
+            ...snapshot.messages
+          ]
+        : snapshot.messages,
+      safety: {
+        ...snapshot.safety,
+        hazards: snapshot.safety.hazards.map((hazard) =>
+          hazard.id === hazardId
+            ? {
+                ...hazard,
+                confirmations,
+                confirmationNames,
+                status: confirmed ? "confirmed" : hazard.status,
+                confirmedAt: confirmed ? nowIso() : hazard.confirmedAt
+              }
+            : hazard
+        )
+      }
+    };
+  });
 }
 
 export async function clearActiveRideRoom(roomId: string) {
@@ -736,7 +1036,8 @@ export async function clearActiveRideRoom(roomId: string) {
     riders: [],
     layers: [],
     activeAlert: snapshot.activeAlert?.status === "active" ? { ...snapshot.activeAlert, status: "resolved", resolvedAt: nowIso() } : snapshot.activeAlert,
-    ridePlan: snapshot.ridePlan
+    ridePlan: snapshot.ridePlan,
+    safety: snapshot.safety
   }));
 }
 
@@ -744,6 +1045,7 @@ async function mutateRoom(roomId: string, updater: (snapshot: RideRoomSnapshot) 
   const store = await readStore();
   const targetIndex = store.rooms.findIndex((snapshot) => snapshot.room.id === roomId);
   if (targetIndex < 0) {
+    await captureError("Room mutation failed", new Error("Room not found."), { roomId });
     throw new Error("Room not found.");
   }
 

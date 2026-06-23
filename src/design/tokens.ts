@@ -111,21 +111,21 @@ export const typeTokens = {
     fontWeight: "700" as const
   },
   title1: {
-    fontSize: 22,
-    lineHeight: 26,
-    letterSpacing: -0.35,
+    fontSize: 21,
+    lineHeight: 25,
+    letterSpacing: -0.3,
     fontWeight: "700" as const
   },
   title2: {
-    fontSize: 18,
-    lineHeight: 22,
-    letterSpacing: -0.2,
+    fontSize: 17,
+    lineHeight: 21,
+    letterSpacing: -0.18,
     fontWeight: "700" as const
   },
   title3: {
     fontSize: 16,
-    lineHeight: 20,
-    letterSpacing: -0.1,
+    lineHeight: 19,
+    letterSpacing: -0.08,
     fontWeight: "600" as const
   },
   body: {
@@ -159,9 +159,9 @@ export const typeTokens = {
     fontWeight: "700" as const
   },
   metric: {
-    fontSize: 34,
-    lineHeight: 34,
-    letterSpacing: -1,
+    fontSize: 32,
+    lineHeight: 32,
+    letterSpacing: -0.9,
     fontWeight: "700" as const
   }
 } as const;

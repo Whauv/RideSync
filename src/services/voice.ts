@@ -2,6 +2,8 @@ import { AppStateStatus } from "react-native";
 import { AudioSession, registerGlobals } from "@livekit/react-native";
 import { ConnectionState, Participant, Room, RoomEvent } from "livekit-client";
 
+import { recordDiagnosticEvent } from "@/services/diagnostics";
+import { trackEvent } from "@/services/analytics";
 import {
   VoiceConnectOptions,
   VoiceParticipantState,
@@ -79,6 +81,18 @@ class LiveKitAdapter implements VoiceProviderAdapter {
       leaderAnnounceRequested: false
     };
     this.emit();
+    void recordDiagnosticEvent({
+      category: "voice",
+      level: "info",
+      title: "Voice connect requested",
+      detail: `Connecting ${options.provider} voice for room ${options.roomCode}.`,
+      context: {
+        roomId: options.roomId
+      }
+    });
+    void trackEvent("voice_connect_started", {
+      provider: options.provider
+    });
 
     const liveKitUrl = process.env.EXPO_PUBLIC_LIVEKIT_URL;
     const liveKitToken = process.env.EXPO_PUBLIC_LIVEKIT_TOKEN;
@@ -121,6 +135,16 @@ class LiveKitAdapter implements VoiceProviderAdapter {
       provider: this.provider
     };
     this.emit();
+    void recordDiagnosticEvent({
+      category: "voice",
+      level: "info",
+      title: "Voice disconnected",
+      detail: "Voice room was torn down cleanly."
+    });
+    void trackEvent("voice_reconnect_attempted", {
+      provider: this.provider,
+      attempt_number: 1
+    });
   }
 
   async setMuted(muted: boolean) {
@@ -165,6 +189,12 @@ class LiveKitAdapter implements VoiceProviderAdapter {
       errorMessage: null
     };
     this.emit();
+    void recordDiagnosticEvent({
+      category: "voice",
+      level: "warning",
+      title: "Voice retry requested",
+      detail: "Retrying room voice connection."
+    });
 
     this.clearConnectTimer();
     this.connectTimer = setTimeout(() => {
@@ -244,6 +274,12 @@ class LiveKitAdapter implements VoiceProviderAdapter {
       this.startSpeakingLoop();
     }
     this.emit();
+    void recordDiagnosticEvent({
+      category: "voice",
+      level: degraded ? "warning" : "info",
+      title: degraded ? "Voice degraded" : "Voice stabilized",
+      detail: degraded ? "Voice transport dropped into degraded mode." : "Voice transport recovered to normal state."
+    });
   }
 
   syncRoster(members: VoiceRosterMember[]) {
@@ -312,6 +348,10 @@ class LiveKitAdapter implements VoiceProviderAdapter {
       };
       this.syncSpeakingParticipants(room.activeSpeakers);
       this.emit();
+      void trackEvent("voice_connect_succeeded", {
+        provider: options.provider,
+        connect_duration_ms: 0
+      });
     } catch (error) {
       this.liveKitRoom = null;
       this.usingSimulatedTransport = true;
@@ -322,6 +362,16 @@ class LiveKitAdapter implements VoiceProviderAdapter {
         errorMessage: error instanceof Error ? error.message : "LiveKit connection failed."
       };
       this.emit();
+      void recordDiagnosticEvent({
+        category: "voice",
+        level: "error",
+        title: "LiveKit connection failed",
+        detail: error instanceof Error ? error.message : "LiveKit connection failed."
+      });
+      void trackEvent("voice_connect_failed", {
+        provider: options.provider,
+        error_code: error instanceof Error ? error.message : "voice_connect_failed"
+      });
     }
   }
 
