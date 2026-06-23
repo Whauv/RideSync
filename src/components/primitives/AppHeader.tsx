@@ -40,12 +40,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "flex-start",
     gap: 12,
-    marginBottom: 18,
-    marginTop: 8
+    marginBottom: 16,
+    marginTop: 10
   },
   copy: {
     flex: 1,
-    gap: 4
+    gap: 3
   },
   eyebrow: {
     marginBottom: 2

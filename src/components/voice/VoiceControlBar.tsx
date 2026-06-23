@@ -10,6 +10,7 @@ interface VoiceControlBarProps {
   voiceSession: VoiceSessionSnapshot;
   canUseVoice: boolean;
   isLeaderView?: boolean;
+  allowLeaderAnnounce?: boolean;
   onToggleMute: () => void;
   onRetry: () => void;
   onLeaderAnnounce: () => void;
@@ -35,6 +36,7 @@ export function VoiceControlBar({
   voiceSession,
   canUseVoice,
   isLeaderView = false,
+  allowLeaderAnnounce = true,
   onToggleMute,
   onRetry,
   onLeaderAnnounce
@@ -93,7 +95,7 @@ export function VoiceControlBar({
         {voiceSession.connectionState !== "connected" ? (
           <Button icon="refresh" label="Retry voice" onPress={onRetry} variant="ghost" />
         ) : null}
-        {isLeaderView ? (
+        {isLeaderView && allowLeaderAnnounce ? (
           <Button
             disabled={!canUseVoice}
             icon="bullhorn-outline"

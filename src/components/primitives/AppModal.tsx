@@ -1,5 +1,6 @@
 import { PropsWithChildren } from "react";
 import { Modal, Pressable, StyleSheet, View } from "react-native";
+import { BlurView } from "expo-blur";
 
 import { AppText } from "@/components/primitives/AppText";
 import { useTheme } from "@/design/ThemeProvider";
@@ -15,10 +16,16 @@ export function AppModal({ visible, onClose, title, children }: AppModalProps) {
 
   return (
     <Modal onRequestClose={onClose} transparent visible={visible}>
-      <Pressable onPress={onClose} style={[styles.scrim, { backgroundColor: theme.colors.scrim }]}>
+      <Pressable onPress={onClose} style={styles.scrim}>
+        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.scrim }]} />
+        <BlurView intensity={theme.mode === "dark" ? 16 : 24} pointerEvents="none" style={StyleSheet.absoluteFill} tint={theme.mode} />
         <Pressable
           onPress={(event) => event.stopPropagation()}
-          style={[styles.modal, { backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.lineSubtle }]}
+          style={[
+            styles.modal,
+            theme.elevation.high,
+            { backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.lineSubtle }
+          ]}
         >
           <AppText variant="title2">{title}</AppText>
           <View style={styles.body}>{children}</View>
@@ -37,9 +44,10 @@ const styles = StyleSheet.create({
   },
   modal: {
     width: "100%",
-    borderRadius: 26,
+    maxWidth: 540,
+    borderRadius: 28,
     borderWidth: 1,
-    padding: 18,
+    padding: 20,
     gap: 14
   },
   body: {

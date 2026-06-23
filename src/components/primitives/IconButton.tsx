@@ -23,7 +23,8 @@ export function IconButton({ icon, onPress, tone = "default" }: IconButtonProps)
         {
           backgroundColor,
           borderColor: theme.colors.lineSubtle,
-          opacity: pressed ? 0.78 : 1
+          opacity: pressed ? 0.86 : 1,
+          transform: [{ scale: pressed ? 0.96 : 1 }]
         }
       ]}
     >
@@ -36,7 +37,7 @@ const styles = StyleSheet.create({
   button: {
     width: 48,
     height: 48,
-    borderRadius: 18,
+    borderRadius: 20,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center"

@@ -59,7 +59,8 @@ export function Button({
         {
           backgroundColor: pressed && variant === "primary" ? theme.colors.accentPressed : palette.bg,
           borderColor: palette.border,
-          opacity: disabled ? 0.45 : 1
+          opacity: disabled ? 0.45 : 1,
+          transform: [{ scale: pressed ? 0.985 : 1 }]
         }
       ]}
     >
@@ -83,7 +84,7 @@ export function Button({
 const styles = StyleSheet.create({
   button: {
     minHeight: 54,
-    borderRadius: 18,
+    borderRadius: 20,
     borderWidth: 1,
     justifyContent: "center",
     paddingHorizontal: 16

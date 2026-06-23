@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { Animated, StyleSheet, View } from "react-native";
 
 import { AppModal } from "@/components/primitives/AppModal";
 import { AppText } from "@/components/primitives/AppText";
 import { Button } from "@/components/primitives/Button";
 import { Chip } from "@/components/primitives/Chip";
 import { Surface } from "@/components/primitives/Surface";
+import { hapticError, hapticWarning } from "@/services/haptics";
 
 interface SOSModalProps {
   visible: boolean;
@@ -17,6 +18,7 @@ const START_COUNTDOWN = 5;
 
 export function SOSModal({ visible, onCancel, onConfirm }: SOSModalProps) {
   const [countdown, setCountdown] = useState(START_COUNTDOWN);
+  const [scale] = useState(() => new Animated.Value(1));
 
   useEffect(() => {
     if (!visible) {
@@ -29,16 +31,25 @@ export function SOSModal({ visible, onCancel, onConfirm }: SOSModalProps) {
       setCountdown((current) => {
         if (current <= 1) {
           clearInterval(timer);
+          void hapticError();
           onConfirm(START_COUNTDOWN);
           return 0;
         }
 
+        void hapticWarning();
+        scale.setValue(0.96);
+        Animated.spring(scale, {
+          toValue: 1,
+          friction: 5,
+          tension: 120,
+          useNativeDriver: true
+        }).start();
         return current - 1;
       });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [onConfirm, visible]);
+  }, [onConfirm, scale, visible]);
 
   return (
     <AppModal onClose={onCancel} title="Emergency escalation" visible={visible}>
@@ -50,10 +61,10 @@ export function SOSModal({ visible, onCancel, onConfirm }: SOSModalProps) {
         </AppText>
       </Surface>
 
-      <View style={styles.countdownBlock}>
+      <Animated.View style={[styles.countdownBlock, { transform: [{ scale }] }]}>
         <AppText variant="metric">{countdown}</AppText>
         <AppText tone="secondary">Seconds until escalation</AppText>
-      </View>
+      </Animated.View>
 
       <View style={styles.actions}>
         <Button label="Cancel SOS" onPress={onCancel} variant="secondary" />

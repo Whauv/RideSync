@@ -19,8 +19,9 @@ export function EmptyState({ icon, title, body, actionLabel, onAction }: EmptySt
 
   return (
     <Surface muted style={styles.card}>
-      <View style={[styles.iconWrap, { backgroundColor: theme.colors.accentMuted }]}>
-        <MaterialCommunityIcons color={theme.colors.accent} name={icon} size={24} />
+      <View style={styles.topRow}>
+        <MaterialCommunityIcons color={theme.colors.accent} name={icon} size={18} />
+        <View style={[styles.rule, { backgroundColor: theme.colors.lineStrong }]} />
       </View>
       <View style={styles.copy}>
         <AppText variant="title2">{title}</AppText>
@@ -35,16 +36,19 @@ const styles = StyleSheet.create({
   card: {
     padding: 18,
     alignItems: "flex-start",
-    gap: 14
+    gap: 12
   },
-  iconWrap: {
-    width: 50,
-    height: 50,
-    borderRadius: 18,
+  topRow: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center"
+    gap: 10,
+    width: "100%"
+  },
+  rule: {
+    height: 1,
+    flex: 1
   },
   copy: {
-    gap: 6
+    gap: 5
   }
 });

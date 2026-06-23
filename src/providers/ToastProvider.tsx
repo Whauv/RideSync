@@ -1,5 +1,6 @@
 import { PropsWithChildren, createContext, useCallback, useContext, useMemo, useState } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
+import { BlurView } from "expo-blur";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
@@ -71,12 +72,13 @@ export function ToastProvider({ children }: PropsWithChildren) {
               onPress={hideToast}
               style={[
                 styles.toast,
+                theme.elevation.medium,
                 {
-                  backgroundColor: theme.colors.surfaceOverlay,
                   borderColor: stateTone.border
                 }
               ]}
             >
+              <BlurView intensity={theme.mode === "dark" ? 22 : 32} pointerEvents="none" style={StyleSheet.absoluteFill} tint={theme.mode} />
               <View style={[styles.iconWrap, { backgroundColor: stateTone.fill }]}>
                 <MaterialCommunityIcons
                   color={stateTone.text}
@@ -120,9 +122,10 @@ const styles = StyleSheet.create({
   toast: {
     borderRadius: 20,
     borderWidth: 1,
+    overflow: "hidden",
     flexDirection: "row",
     alignItems: "center",
-    padding: 12,
+    padding: 13,
     gap: 12
   },
   iconWrap: {

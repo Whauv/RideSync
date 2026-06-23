@@ -16,7 +16,7 @@ export function Surface({ children, style, muted = false, raised = false }: Surf
     <View
       style={[
         styles.base,
-        raised ? theme.elevation.medium : theme.elevation.none,
+        raised ? theme.elevation.low : theme.elevation.none,
         {
           backgroundColor: raised
             ? theme.colors.surfaceRaised
@@ -36,6 +36,6 @@ export function Surface({ children, style, muted = false, raised = false }: Surf
 const styles = StyleSheet.create({
   base: {
     borderWidth: 1,
-    borderRadius: 24
+    borderRadius: 22
   }
 });

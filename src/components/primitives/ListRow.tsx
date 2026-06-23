@@ -18,7 +18,16 @@ export function ListRow({ title, subtitle, leading, trailing, onPress, chevron =
   const theme = useTheme();
 
   return (
-    <Pressable onPress={onPress} style={[styles.row, { borderBottomColor: theme.colors.lineSubtle }]}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.row,
+        {
+          borderBottomColor: theme.colors.lineSubtle,
+          backgroundColor: pressed ? theme.colors.surfaceMuted : "transparent"
+        }
+      ]}
+    >
       {leading ? <View>{leading}</View> : null}
       <View style={styles.copy}>
         <AppText variant="bodyStrong">{title}</AppText>
@@ -37,6 +46,8 @@ export function ListRow({ title, subtitle, leading, trailing, onPress, chevron =
 const styles = StyleSheet.create({
   row: {
     minHeight: 62,
+    borderRadius: 18,
+    paddingHorizontal: 8,
     paddingVertical: 12,
     flexDirection: "row",
     alignItems: "center",

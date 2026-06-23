@@ -3,6 +3,7 @@ import { StyleSheet } from "react-native";
 import { router } from "expo-router";
 
 import { AppHeader } from "@/components/primitives/AppHeader";
+import { WebDevModeCard } from "@/components/dev/WebDevModeCard";
 import { AppModal } from "@/components/primitives/AppModal";
 import { AppText } from "@/components/primitives/AppText";
 import { Button } from "@/components/primitives/Button";
@@ -14,6 +15,7 @@ import { SegmentedControl } from "@/components/primitives/SegmentedControl";
 import { Surface } from "@/components/primitives/Surface";
 import { useToast } from "@/providers/ToastProvider";
 import { signOutUser } from "@/services/auth";
+import { getPlatformCapabilities } from "@/services/platform";
 import { useAppStore } from "@/store/useAppStore";
 
 const themeModes = [
@@ -25,9 +27,13 @@ const themeModes = [
 export default function SettingsScreen() {
   const { showToast } = useToast();
   const themeMode = useAppStore((state) => state.themeMode);
+  const runtimePreferences = useAppStore((state) => state.runtimePreferences);
+  const featureFlags = useAppStore((state) => state.featureFlags);
   const setThemeMode = useAppStore((state) => state.setThemeMode);
+  const setRuntimePreferences = useAppStore((state) => state.setRuntimePreferences);
   const signOutLocal = useAppStore((state) => state.signOutLocal);
   const [showProviderModal, setShowProviderModal] = useState(false);
+  const platformCapabilities = getPlatformCapabilities();
 
   return (
     <Screen scroll>
@@ -43,6 +49,38 @@ export default function SettingsScreen() {
         <SegmentedControl onChange={setThemeMode} options={themeModes} value={themeMode} />
       </Surface>
 
+      <WebDevModeCard />
+
+      <Surface style={styles.panel}>
+        <AppText variant="title3">Ride resilience</AppText>
+        <SegmentedControl
+          onChange={(value) => setRuntimePreferences({ batterySaverMode: value === "on" })}
+          options={[
+            { label: "Battery saver off", value: "off" },
+            { label: "Battery saver on", value: "on" }
+          ]}
+          value={runtimePreferences.batterySaverMode ? "on" : "off"}
+        />
+        <SegmentedControl
+          onChange={(value) => setRuntimePreferences({ reducedGpsCadence: value === "reduced" })}
+          options={[
+            { label: "Standard GPS", value: "standard" },
+            { label: "Reduced cadence", value: "reduced" }
+          ]}
+          value={runtimePreferences.reducedGpsCadence ? "reduced" : "standard"}
+        />
+        <AppText tone="secondary">
+          Battery saver stretches ride telemetry intervals. Reduced cadence lowers location update frequency for weak-power days.
+        </AppText>
+      </Surface>
+
+      <Surface style={styles.panel}>
+        <AppText variant="title3">Development surface</AppText>
+        <AppText tone="secondary">
+          Current surface: {platformCapabilities.surface}. Browser mode uses shared product flows with simulated map and voice transports so we can validate the system in one repo before deep device testing.
+        </AppText>
+      </Surface>
+
       <Surface style={styles.panel}>
         <ListRow
           chevron
@@ -53,11 +91,27 @@ export default function SettingsScreen() {
         />
         <ListRow
           chevron
+          leading={<Chip label="Safety" tone="warning" />}
+          onPress={() => router.push("/medical-card")}
+          subtitle="Emergency contact context, medical notes, and leader-sharing preferences."
+          title="Medical card"
+        />
+        <ListRow
+          chevron
           leading={<Chip label="Provider" tone="neutral" />}
           onPress={() => setShowProviderModal(true)}
           subtitle="LiveKit-first voice abstraction and metadata-sync playback model with provider policy guardrails."
           title="Provider stack"
         />
+        {featureFlags.developerDiagnostics ? (
+          <ListRow
+            chevron
+            leading={<Chip label="Diagnostics" tone="accent" />}
+            onPress={() => router.push("/diagnostics")}
+            subtitle="Recovery state, local logs, crash placeholder status, and feature flags."
+            title="Reliability console"
+          />
+        ) : null}
         <ListRow
           leading={<Chip label="Account" tone="warning" />}
           onPress={async () => {
