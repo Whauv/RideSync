@@ -173,6 +173,49 @@ export const motionTokens = {
   slow: 320
 } as const;
 
+export const marketingTokens = {
+  color: {
+    background: "#0C0C0E",
+    backgroundElevated: "#0A0A0C",
+    surface1: "#141416",
+    surface2: "#1A1A1E",
+    borderSubtle: "rgba(255,255,255,0.06)",
+    borderDefault: "rgba(255,255,255,0.10)",
+    textPrimary: "#F0F0F2",
+    textSecondary: "rgba(240,240,242,0.60)",
+    textTertiary: "rgba(240,240,242,0.40)",
+    textQuiet: "rgba(240,240,242,0.30)",
+    accent: "#00C49A",
+    accentMuted: "rgba(0,196,154,0.12)",
+    road: "rgba(0,196,154,0.15)",
+    roadCenter: "rgba(0,196,154,0.40)"
+  },
+  type: {
+    micro: 10,
+    footnote: 11,
+    caption: 12,
+    ui: 13,
+    body: 15,
+    subhead: 16,
+    statement: 18,
+    section: 28,
+    display: 38,
+    hero: 64
+  },
+  spacing: {
+    navHeight: 56,
+    sectionGap: 120,
+    sectionGapLarge: 160,
+    subsectionGap: 64,
+    elementGap: 32
+  },
+  radius: {
+    control: 6,
+    button: 8,
+    panel: 24
+  }
+} as const;
+
 export const elevationTokens = {
   none: {
     shadowColor: "#000000",
@@ -228,6 +271,7 @@ export const tokens = {
   touch: touchTokens,
   type: typeTokens,
   motion: motionTokens,
+  marketing: marketingTokens,
   elevation: elevationTokens,
   mapOverlay: mapOverlayTokens,
   state: semanticStateTokens
