@@ -216,6 +216,77 @@ export const marketingTokens = {
   }
 } as const;
 
+export const authTokens = {
+  color: {
+    background: "#0C0C0E",
+    backgroundAside: "#0A0A0C",
+    surface: "#161618",
+    border: "rgba(255,255,255,0.10)",
+    borderMuted: "rgba(255,255,255,0.10)",
+    borderSubtle: "rgba(255,255,255,0.06)",
+    divider: "rgba(255,255,255,0.05)",
+    insetHighlight: "rgba(255,255,255,0.07)",
+    textPrimary: "#F0F0F2",
+    textSecondary: "rgba(240,240,242,0.32)",
+    textTertiary: "rgba(240,240,242,0.30)",
+    accent: "#00C49A",
+    buttonAccent: "#00B088",
+    warningText: "rgba(255,180,0,0.7)",
+    warningBorder: "rgba(255,180,0,0.2)",
+    warningSurface: "rgba(255,180,0,0.04)",
+    dangerSurface: "rgba(224,84,84,0.20)",
+    successSurface: "rgba(45,157,100,0.24)"
+  },
+  spacing: {
+    cardWidth: 420,
+    cardPaddingX: 36,
+    cardPaddingY: 40,
+    mobileCardPadding: 24
+  },
+  radius: {
+    card: 16,
+    button: 8,
+    warning: 10
+  }
+} as const;
+
+export const adminTokens = {
+  color: {
+    background: "#0E0E10",
+    panel: "#131315",
+    stat: "#141416",
+    borderSubtle: "rgba(255,255,255,0.06)",
+    borderDefault: "rgba(255,255,255,0.07)",
+    borderStrong: "rgba(255,255,255,0.10)",
+    rowHover: "rgba(255,255,255,0.03)",
+    logHover: "rgba(255,255,255,0.025)",
+    textPrimary: "#F0F0F2",
+    textPanel: "rgba(240,240,242,0.85)",
+    textSecondary: "rgba(240,240,242,0.35)",
+    textTertiary: "rgba(240,240,242,0.28)",
+    textMeta: "rgba(240,240,242,0.22)",
+    accent: "#00C49A",
+    warning: "#E09A00",
+    danger: "#E05454",
+    success: "#2D9D64",
+    infoBadge: "rgba(255,255,255,0.06)",
+    warnBadge: "rgba(224,154,0,0.12)",
+    errorBadge: "rgba(224,84,84,0.12)",
+    divider: "rgba(255,255,255,0.05)"
+  },
+  spacing: {
+    headerHeight: 64,
+    panelHeaderHeight: 48,
+    footerHeight: 40
+  },
+  radius: {
+    stat: 10,
+    panel: 12,
+    pill: 10,
+    badge: 3
+  }
+} as const;
+
 export const elevationTokens = {
   none: {
     shadowColor: "#000000",
@@ -272,6 +343,8 @@ export const tokens = {
   type: typeTokens,
   motion: motionTokens,
   marketing: marketingTokens,
+  auth: authTokens,
+  admin: adminTokens,
   elevation: elevationTokens,
   mapOverlay: mapOverlayTokens,
   state: semanticStateTokens
