@@ -4,25 +4,27 @@ import { motion } from "framer-motion";
 import { tokens } from "@/design/tokens";
 
 const palette = tokens.admin.color;
-const fontStack = 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+const fonts = tokens.admin.font;
 
 export function EmptyState({
   body,
   heading,
   icon,
-  tight = false
+  minHeight = 140,
+  paddingY = 40
 }: {
   body: string;
   heading: string;
   icon: ReactNode;
-  tight?: boolean;
+  minHeight?: number;
+  paddingY?: number;
 }) {
   return (
     <motion.div
       animate={{ opacity: 1, y: 0 }}
-      initial={{ opacity: 0, y: 8 }}
-      style={{ ...wrapStyle, paddingTop: tight ? 40 : 48, paddingBottom: tight ? 40 : 48 }}
-      transition={{ duration: 0.5, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
+      initial={{ opacity: 0, y: 6 }}
+      style={{ ...wrapStyle, minHeight, paddingTop: paddingY, paddingBottom: paddingY }}
+      transition={{ duration: 0.45, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
     >
       <div>{icon}</div>
       <div style={headingStyle}>{heading}</div>
@@ -33,33 +35,62 @@ export function EmptyState({
 
 export function RoadGlyph() {
   return (
-    <svg height="32" viewBox="0 0 40 32" width="40">
-      <path d="M14 2h12l8 28H6L14 2Z" fill="none" stroke="rgba(240,240,242,0.20)" strokeWidth="1.2" />
-      <path d="M20 6v4m0 4v4m0 4v4" stroke={palette.textSecondary} strokeLinecap="round" strokeWidth="1.2" />
+    <svg height="28" viewBox="0 0 36 28" width="36">
+      <rect
+        fill="rgba(255,255,255,0.03)"
+        height="28"
+        rx="2"
+        stroke="rgba(255,255,255,0.07)"
+        strokeWidth="1"
+        width="14"
+        x="11"
+        y="0"
+      />
+      <rect fill="rgba(0,196,154,0.30)" height="4" rx="1" width="2" x="17" y="2" />
+      <rect fill="rgba(0,196,154,0.30)" height="4" rx="1" width="2" x="17" y="10" />
+      <rect fill="rgba(0,196,154,0.30)" height="4" rx="1" width="2" x="17" y="18" />
+      <line stroke="rgba(255,255,255,0.05)" strokeWidth="1" x1="13" x2="13" y1="0" y2="28" />
+      <line stroke="rgba(255,255,255,0.05)" strokeWidth="1" x1="23" x2="23" y1="0" y2="28" />
     </svg>
   );
 }
 
 export function ShieldCheckGlyph() {
   return (
-    <svg height="24" viewBox="0 0 24 24" width="24">
-      <path d="M12 3.5 18.5 6v5.6c0 4.1-2.6 7.2-6.5 8.9-3.9-1.7-6.5-4.8-6.5-8.9V6L12 3.5Z" fill="none" stroke={palette.accent} strokeOpacity="0.3" strokeWidth="1.2" />
-      <path d="m9.1 12.1 2.1 2.1 3.8-4.1" fill="none" stroke={palette.accent} strokeOpacity="0.3" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.2" />
+    <svg height="28" viewBox="0 0 24 28" width="24">
+      <path
+        d="M12 1L2 5v8c0 6.5 4.5 11.5 10 13 5.5-1.5 10-6.5 10-13V5L12 1z"
+        fill="rgba(0,196,154,0.04)"
+        stroke="rgba(0,196,154,0.25)"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M8 14l2.5 2.5 5-5.5"
+        stroke="rgba(0,196,154,0.50)"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
     </svg>
   );
 }
 
 export function CheckGlyph() {
   return (
-    <svg height="24" viewBox="0 0 24 24" width="24">
-      <circle cx="12" cy="12" fill="none" r="9" stroke="rgba(240,240,242,0.22)" strokeWidth="1.2" />
-      <path d="m8.5 12.2 2.3 2.3 4.6-5" fill="none" stroke={palette.success} strokeLinecap="round" strokeLinejoin="round" strokeOpacity="0.65" strokeWidth="1.5" />
+    <svg height="28" viewBox="0 0 28 28" width="28">
+      <circle cx="14" cy="14" fill="none" r="12" stroke="rgba(0,196,154,0.20)" strokeWidth="1.5" />
+      <path
+        d="M9 14l3.5 3.5 6.5-7"
+        stroke="rgba(0,196,154,0.55)"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
     </svg>
   );
 }
 
 const wrapStyle: CSSProperties = {
-  minHeight: 220,
   display: "grid",
   justifyItems: "center",
   alignContent: "center",
@@ -67,22 +98,20 @@ const wrapStyle: CSSProperties = {
 };
 
 const headingStyle: CSSProperties = {
-  marginTop: 12,
-  fontFamily: fontStack,
-  fontSize: 14,
-  lineHeight: 1.4,
+  marginTop: 10,
+  fontFamily: fonts.body,
+  fontSize: 13,
+  lineHeight: 1.35,
   fontWeight: 500,
-  color: palette.textPrimary,
-  opacity: 0.7
+  color: palette.textSecondary
 };
 
 const bodyStyle: CSSProperties = {
-  marginTop: 8,
-  maxWidth: 240,
-  fontFamily: fontStack,
-  fontSize: 12,
-  lineHeight: 1.5,
+  marginTop: 6,
+  maxWidth: 200,
+  fontFamily: fonts.body,
+  fontSize: 11,
+  lineHeight: 1.55,
   fontWeight: 400,
-  color: palette.textPrimary,
-  opacity: 0.35
+  color: palette.textTertiary
 };

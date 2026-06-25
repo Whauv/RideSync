@@ -6,7 +6,7 @@ import type { DiagnosticEvent } from "@/types/runtime";
 
 const palette = tokens.admin.color;
 const radius = tokens.admin.radius;
-const fontStack = 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+const fonts = tokens.admin.font;
 
 export interface DedupedLogEntry extends DiagnosticEvent {
   duplicateCount: number;
@@ -21,6 +21,8 @@ export function dedupeDiagnosticEntries(events: DiagnosticEvent[]) {
       last.duplicateCount += 1;
       if (Date.parse(event.createdAt) > Date.parse(last.createdAt)) {
         last.createdAt = event.createdAt;
+        last.detail = event.detail;
+        last.level = event.level;
       }
       continue;
     }
@@ -34,14 +36,14 @@ export function dedupeDiagnosticEntries(events: DiagnosticEvent[]) {
   return result;
 }
 
-export function LogEntry({ entry, index, timeLabel }: { entry: DedupedLogEntry; index: number; timeLabel: string }) {
+export function LogEntry({ entry, timeLabel }: { entry: DedupedLogEntry; timeLabel: string }) {
   const severity = entry.level === "error" ? "ERROR" : entry.level === "warning" ? "WARN" : "INFO";
   const badgeStyle =
     entry.level === "error"
-      ? { background: palette.errorBadge, color: "rgba(224,84,84,0.85)", border: "1px solid rgba(224,84,84,0.20)" }
+      ? { background: palette.errorBadge, color: palette.danger, border: `1px solid ${palette.dangerSurface}` }
       : entry.level === "warning"
-        ? { background: palette.warnBadge, color: "rgba(224,154,0,0.85)", border: "1px solid rgba(224,154,0,0.20)" }
-        : { background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.10)" };
+        ? { background: palette.warnBadge, color: palette.warning, border: `1px solid ${palette.warningSurface}` }
+        : { background: palette.infoBadge, color: palette.textSecondary, border: `1px solid ${palette.borderDefault}` };
 
   return (
     <AnimatePresence initial={false}>
@@ -49,7 +51,7 @@ export function LogEntry({ entry, index, timeLabel }: { entry: DedupedLogEntry; 
         animate={{ opacity: 1, y: 0 }}
         initial={{ opacity: 0, y: -6 }}
         style={rowStyle}
-        transition={{ duration: 0.25, delay: index * 0.04, ease: "easeOut" }}
+        transition={{ duration: 0.22, ease: "easeOut" }}
         whileHover={{ backgroundColor: palette.logHover }}
       >
         <div style={{ ...badgeBaseStyle, ...badgeStyle }}>{severity}</div>
@@ -67,39 +69,40 @@ export function LogEntry({ entry, index, timeLabel }: { entry: DedupedLogEntry; 
 }
 
 const rowStyle: CSSProperties = {
-  minHeight: 40,
+  minHeight: 44,
   padding: "10px 16px",
   borderBottom: "1px solid rgba(255,255,255,0.04)",
   display: "grid",
-  gridTemplateColumns: "auto 1fr auto",
-  alignItems: "start",
+  gridTemplateColumns: "40px 1fr auto",
+  alignItems: "center",
   gap: 12,
-  transition: "background-color 120ms ease",
+  transition: "background-color 100ms ease",
   cursor: "default"
 };
 
 const badgeBaseStyle: CSSProperties = {
-  padding: "2px 6px",
+  justifySelf: "start",
+  padding: "2px 5px",
   borderRadius: radius.badge,
-  fontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace',
-  fontSize: 9,
+  fontFamily: fonts.body,
+  fontSize: 8,
   lineHeight: 1.2,
-  fontWeight: 600,
-  letterSpacing: "0.04em",
-  whiteSpace: "nowrap",
-  flexShrink: 0
+  fontWeight: 700,
+  letterSpacing: "0.05em",
+  textTransform: "uppercase",
+  whiteSpace: "nowrap"
 };
 
 const centerStyle: CSSProperties = {
   minWidth: 0,
+  padding: "0 12px 0 0",
   display: "grid",
-  gap: 4
+  gap: 1
 };
 
 const titleLineStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: 0,
   minWidth: 0
 };
 
@@ -107,45 +110,41 @@ const titleStyle: CSSProperties = {
   overflow: "hidden",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
-  fontFamily: fontStack,
+  fontFamily: fonts.body,
   fontSize: 12,
-  lineHeight: 1.3,
+  lineHeight: 1.35,
   fontWeight: 500,
-  color: palette.textPrimary,
-  opacity: 0.75
+  color: palette.textPrimary
 };
 
 const duplicateStyle: CSSProperties = {
   marginLeft: 6,
-  fontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace',
+  fontFamily: fonts.mono,
   fontSize: 9,
   lineHeight: 1.2,
   fontWeight: 600,
   color: palette.accent,
-  background: "rgba(0,196,154,0.12)",
-  borderRadius: 4,
+  background: "rgba(0,196,154,0.10)",
+  borderRadius: 3,
   padding: "1px 5px"
 };
 
 const detailStyle: CSSProperties = {
-  fontFamily: fontStack,
-  fontSize: 11,
-  lineHeight: 1.4,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  fontFamily: fonts.body,
+  fontSize: 10,
+  lineHeight: 1.35,
   fontWeight: 400,
-  color: palette.textPrimary,
-  opacity: 0.35,
-  display: "-webkit-box",
-  WebkitLineClamp: 2,
-  WebkitBoxOrient: "vertical",
-  overflow: "hidden"
+  color: palette.textTertiary
 };
 
 const timeStyle: CSSProperties = {
   whiteSpace: "nowrap",
-  fontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace',
-  fontSize: 11,
-  lineHeight: 1.3,
+  fontFamily: fonts.mono,
+  fontSize: 10,
+  lineHeight: 1.2,
   fontWeight: 400,
-  color: palette.textPrimary,
-  opacity: 0.22
+  color: palette.textQuaternary
 };
