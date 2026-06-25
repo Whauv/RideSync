@@ -174,24 +174,57 @@ export const motionTokens = {
 } as const;
 
 export const marketingTokens = {
+  font: {
+    display: '"Geist", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    body: '"Geist", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    mono: '"Geist Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
+  },
   color: {
-    background: "#0C0C0E",
-    backgroundElevated: "#0A0A0C",
-    surface1: "#141416",
-    surface2: "#1A1A1E",
-    borderSubtle: "rgba(255,255,255,0.06)",
-    borderDefault: "rgba(255,255,255,0.10)",
-    textPrimary: "#F0F0F2",
-    textSecondary: "rgba(240,240,242,0.60)",
-    textTertiary: "rgba(240,240,242,0.40)",
-    textQuiet: "rgba(240,240,242,0.30)",
+    background: "#080809",
+    shell: "#0E0F11",
+    backgroundElevated: "#0E0F11",
+    surface1: "#141519",
+    surface2: "rgba(20,21,25,0.85)",
+    surface3: "#1A1C21",
+    warmGraphite: "#17171A",
+    metalSlate: "#13151A",
+    smokedIvory: "rgba(242,238,230,0.03)",
+    mutedAsphalt: "#0F1014",
+    borderSubtle: "rgba(255,255,255,0.055)",
+    borderDefault: "rgba(255,255,255,0.09)",
+    borderStrong: "rgba(255,255,255,0.15)",
+    textPrimary: "#F2F3F5",
+    textSecondary: "rgba(242,243,245,0.60)",
+    textTertiary: "rgba(242,243,245,0.35)",
+    textQuiet: "rgba(242,243,245,0.20)",
+    textQuaternary: "rgba(242,243,245,0.20)",
     accent: "#00C49A",
-    accentMuted: "rgba(0,196,154,0.12)",
-    road: "rgba(0,196,154,0.15)",
-    roadCenter: "rgba(0,196,154,0.40)"
+    accentDim: "rgba(0,196,154,0.10)",
+    accentBorder: "rgba(0,196,154,0.25)",
+    accentMuted: "rgba(0,196,154,0.10)",
+    road: "rgba(0,196,154,0.20)",
+    roadCenter: "rgba(0,196,154,0.30)",
+    stateLive: "#00C49A",
+    stateCaution: "rgba(224,164,0,0.90)",
+    stateCautionSurface: "rgba(224,164,0,0.08)",
+    stateEmergency: "rgba(224,84,84,0.90)",
+    stateEmergencySurface: "rgba(224,84,84,0.08)",
+    stateSync: "rgba(100,160,255,0.90)",
+    stateSyncSurface: "rgba(100,160,255,0.08)"
   },
   type: {
+    displayXL: 56,
+    displayL: 40,
+    displayM: 28,
+    heading: 20,
+    subheading: 15,
+    bodyL: 16,
+    bodyM: 14,
+    bodyS: 13,
+    label: 11,
     micro: 10,
+    data: 13,
+    metric: 32,
     footnote: 11,
     caption: 12,
     ui: 13,
@@ -199,20 +232,38 @@ export const marketingTokens = {
     subhead: 16,
     statement: 18,
     section: 28,
-    display: 38,
-    hero: 64
+    display: 40,
+    hero: 56
   },
   spacing: {
     navHeight: 56,
-    sectionGap: 120,
-    sectionGapLarge: 160,
+    sectionGap: 128,
+    sectionGapLarge: 200,
     subsectionGap: 64,
-    elementGap: 32
+    elementGap: 32,
+    shellInset: 48
   },
   radius: {
     control: 6,
     button: 8,
-    panel: 24
+    panel: 14,
+    cell: 10
+  },
+  elevation: {
+    panel: "0 18px 48px rgba(0,0,0,0.34)",
+    float: "0 24px 56px rgba(0,0,0,0.28)"
+  },
+  blur: {
+    glass: "blur(20px) saturate(120%)",
+    nav: "blur(16px) saturate(110%)"
+  },
+  motion: {
+    sectionEase: [0.16, 1, 0.3, 1] as const,
+    durationFast: 0.4,
+    durationBase: 0.5,
+    durationPanel: 0.6,
+    durationRoute: 2.5,
+    stagger: 0.06
   }
 } as const;
 
