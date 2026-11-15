@@ -8,7 +8,7 @@ import "@fontsource/geist-mono/600.css";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { useRouter } from "expo-router";
-import { motion } from "framer-motion";
+import { motion, useScroll, useTransform } from "framer-motion";
 import { useWindowDimensions } from "react-native";
 
 import { CinematicMapHero } from "@/components/marketing/CinematicMapHero";
@@ -43,10 +43,10 @@ const lifecycleStages = [
 ];
 
 const microCallouts = [
-  { value: "1s", label: "location update interval" },
-  { value: "360deg", label: "heading tracked per rider" },
-  { value: "inf", label: "riders viewable on map" },
-  { value: "2px", label: "route ribbon precision" }
+  { value: "~1", suffix: "s", label: "LOCATION UPDATE\nINTERVAL" },
+  { value: "360", suffix: "°", label: "HEADING\nPER RIDER" },
+  { value: "8", suffix: "+", label: "RIDERS\nPER ROOM" },
+  { value: "Live", suffix: "", label: "ROUTE\nRECALCULATION" }
 ];
 
 const voiceRows = [
@@ -368,6 +368,7 @@ export default function MarketingWebScreen() {
   const [activeSection, setActiveSection] = useState<SectionId>("product");
   const [navScrolled, setNavScrolled] = useState(false);
   const [activeStage, setActiveStage] = useState(0);
+  const mapSectionRef = useRef<HTMLElement | null>(null);
   const sectionRefs = useRef<Record<SectionId, HTMLElement | null>>({
     product: null,
     lifecycle: null,
@@ -385,6 +386,12 @@ export default function MarketingWebScreen() {
 
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  const { scrollYProgress: mapSectionProgress } = useScroll({
+    target: mapSectionRef,
+    offset: ["start end", "end start"]
+  });
+  const sectionNumberOpacity = useTransform(mapSectionProgress, [0, 0.5, 1], [0.12, 0.22, 0.12]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -634,32 +641,99 @@ export default function MarketingWebScreen() {
           id="map"
           ref={(node) => {
             sectionRefs.current.map = node;
+            mapSectionRef.current = node;
           }}
-          style={{ background: palette.metalSlate, padding: `${spacing.sectionGap}px 0` }}
+          style={{ position: "relative", background: "#0A0B0E", padding: "120px 0 120px", borderBottom: "1px solid rgba(255,255,255,0.05)" }}
         >
-          <div style={frameStyle}>
-            <div style={{ ...sectionContentStyle, display: "grid", gridTemplateColumns: mobile ? "1fr" : "minmax(320px, 0.4fr) minmax(0, 0.6fr)", gap: 40, alignItems: "center" }}>
-              <div style={{ display: "grid", gap: 18 }}>
-                <span style={microAccentStyle}>LIVE MAP</span>
-                <h2 style={{ ...sectionHeadingStyle, maxWidth: 340 }}>The whole group. One read. Zero guesswork.</h2>
-                <p style={{ ...bodyMediumStyle, maxWidth: 320 }}>
-                  Every rider&apos;s position, heading, and speed - updated live. Spacing issues, stragglers, and route deviations surface before they become problems.
-                </p>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 16, maxWidth: 300 }}>
-                  {microCallouts.map((item) => (
-                    <div key={item.label} style={{ display: "grid", gap: 4 }}>
-                      <span style={{ fontFamily: fonts.mono, fontSize: 20, color: palette.accent }}>{item.value}</span>
-                      <span style={microMutedStyle}>{item.label}</span>
-                    </div>
+          <div style={{ ...frameStyle, position: "relative", padding: "0 48px" }}>
+            {!mobile && width >= 1100 ? (
+              <motion.div style={{ ...mapSectionNumberStyle, opacity: sectionNumberOpacity }}>
+                02
+              </motion.div>
+            ) : null}
+            <div style={{ ...sectionContentStyle, position: "relative", display: "grid", gridTemplateColumns: mobile ? "1fr" : width < 1024 ? "1fr" : "420px 1fr", gap: mobile ? 32 : width < 1024 ? 36 : 80, alignItems: "center" }}>
+              <div style={{ display: "grid", gap: 0, maxWidth: 420 }}>
+                <motion.div
+                  initial={{ opacity: 0, x: -8 }}
+                  style={liveMapBookmarkStyle}
+                  transition={{ duration: 0.5, ease: "easeOut" }}
+                  whileInView={{ opacity: 0.35, x: 0, width: 48 }}
+                  viewport={{ once: true }}
+                />
+                <motion.span
+                  initial={{ opacity: 0, x: -8 }}
+                  style={liveMapOverlineStyle}
+                  transition={{ duration: 0.4, ease }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                >
+                  LIVE MAP
+                </motion.span>
+                <div style={{ display: "grid", gap: 2, marginTop: 10 }}>
+                  {["The whole group.", "One read.", "Zero guesswork."].map((line, index) => (
+                    <motion.h2
+                      key={line}
+                      initial={{ opacity: 0, y: 10 }}
+                      style={liveMapHeadingStyle}
+                      transition={{ duration: 0.45, delay: 0.1 + index * 0.08, ease }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                    >
+                      {line}
+                    </motion.h2>
                   ))}
                 </div>
-                <motion.button initial="rest" onClick={openApp} style={ghostButtonStyle()} whileHover="hover">
-                  <span style={{ color: palette.accent }}>See it in the product</span>
-                  <motion.span variants={{ rest: { x: 0 }, hover: { x: 3 } }} style={{ color: palette.accent }}>{"->"}</motion.span>
+                <motion.div initial={{ width: 0 }} style={liveMapAccentBarStyle} transition={{ duration: 0.5, delay: 0.4, ease: "easeOut" }} whileInView={{ width: 32 }} viewport={{ once: true }} />
+                <motion.p
+                  initial={{ opacity: 0, y: 6 }}
+                  style={liveMapBodyStyle}
+                  transition={{ duration: 0.4, delay: 0.5, ease }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                >
+                  Every rider&apos;s position, heading, and speed - updated live. Spacing issues, stragglers, and route deviations surface before they become problems.
+                </motion.p>
+                <div style={liveMapMetricsGridStyle}>
+                  {microCallouts.map((item, index) => (
+                    <motion.div
+                      key={item.label}
+                      initial={{ opacity: 0.85, y: 8 }}
+                      style={metricCalloutStyle}
+                      transition={{ duration: 0.4, delay: 0.65 + index * 0.08, ease }}
+                      whileHover={{ opacity: 1 }}
+                      whileInView={{ opacity: 0.85, y: 0 }}
+                      viewport={{ once: true }}
+                    >
+                      <motion.div style={metricBorderStyle} whileHover={{ opacity: 0.6 }} />
+                      <div style={{ display: "grid", gap: 6 }}>
+                        <div style={metricValueStyle}>
+                          {item.value}
+                          {item.suffix ? <span style={metricSuffixStyle}>{item.suffix}</span> : null}
+                        </div>
+                        <div style={metricLabelStyle}>{item.label}</div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+                <motion.button initial="rest" onClick={openApp} style={liveMapLinkStyle} variants={{ rest: { opacity: 0.75 }, hover: { opacity: 1 } }} whileHover="hover">
+                  <span>See it in the product</span>
+                  <motion.span style={{ color: palette.accent }} variants={{ rest: { x: 0 }, hover: { x: 5 } }}>{"->"}</motion.span>
+                  <motion.div
+                    style={liveMapLinkUnderlineStyle}
+                    variants={{ rest: { scaleX: 0 }, hover: { scaleX: 1 } }}
+                  />
                 </motion.button>
               </div>
 
-              <RideMapPreview variant="signature" />
+              {!mobile ? (
+                <div style={{ position: "relative", width: "100%", minHeight: width < 1024 ? 360 : 480, aspectRatio: width < 1024 ? "16 / 9" : "16 / 9", overflow: "hidden", background: "transparent" }}>
+                  <motion.div style={mapFadeLeftStyle} />
+                  <motion.div style={mapFadeTopStyle} />
+                  <motion.div style={mapFadeRightStyle} />
+                  <motion.div style={mapFadeBottomStyle} />
+                  <RideMapPreview variant="signature" />
+                </div>
+              ) : null}
             </div>
           </div>
         </section>
@@ -916,6 +990,174 @@ const heroMapFadeBottomStyle: CSSProperties = {
   position: "absolute",
   inset: 0,
   background: "linear-gradient(to top, #080809 0%, rgba(8,8,9,0) 20%)",
+  zIndex: 2
+};
+
+const mapSectionNumberStyle: CSSProperties = {
+  position: "absolute",
+  left: -32,
+  top: "50%",
+  transform: "translateY(-50%) rotate(-90deg)",
+  transformOrigin: "center",
+  fontFamily: fonts.mono,
+  fontSize: 9,
+  letterSpacing: "0.06em",
+  color: palette.textPrimary,
+  pointerEvents: "none"
+};
+
+const liveMapOverlineStyle: CSSProperties = {
+  fontSize: 10,
+  lineHeight: 1.2,
+  fontWeight: 600,
+  letterSpacing: "0.10em",
+  textTransform: "uppercase",
+  color: palette.accent,
+  opacity: 0.75
+};
+
+const liveMapBookmarkStyle: CSSProperties = {
+  width: 0,
+  height: 1.5,
+  background: palette.accent,
+  opacity: 0,
+  marginBottom: 14
+};
+
+const liveMapHeadingStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 32,
+  lineHeight: 1.08,
+  fontWeight: 700,
+  letterSpacing: "-0.025em",
+  fontFamily: fonts.display,
+  color: palette.textPrimary,
+  maxWidth: 340
+};
+
+const liveMapAccentBarStyle: CSSProperties = {
+  height: 1.5,
+  background: palette.accent,
+  marginTop: 16,
+  marginBottom: 20
+};
+
+const liveMapBodyStyle: CSSProperties = {
+  margin: 0,
+  maxWidth: 360,
+  fontSize: 14,
+  lineHeight: 1.65,
+  fontWeight: 400,
+  color: "rgba(242,243,245,0.58)"
+};
+
+const liveMapMetricsGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  rowGap: 16,
+  columnGap: 24,
+  maxWidth: 280,
+  marginTop: 28
+};
+
+const metricCalloutStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1px 1fr",
+  alignItems: "start",
+  gap: 12,
+  opacity: 0.85
+};
+
+const metricBorderStyle: CSSProperties = {
+  width: 1,
+  height: 20,
+  background: "rgba(0,196,154,0.35)",
+  marginTop: 4
+};
+
+const metricValueStyle: CSSProperties = {
+  fontFamily: fonts.mono,
+  fontSize: 24,
+  lineHeight: 1,
+  fontWeight: 600,
+  color: palette.textPrimary
+};
+
+const metricSuffixStyle: CSSProperties = {
+  color: palette.accent
+};
+
+const metricLabelStyle: CSSProperties = {
+  fontSize: 9,
+  lineHeight: 1.4,
+  fontWeight: 500,
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  whiteSpace: "pre-line",
+  color: "rgba(238,238,240,0.32)"
+};
+
+const liveMapLinkStyle: CSSProperties = {
+  ...ghostButtonStyle(),
+  position: "relative",
+  width: "fit-content",
+  marginTop: 24,
+  color: palette.accent,
+  opacity: 0.75,
+  transition: "opacity 150ms ease"
+};
+
+const liveMapLinkUnderlineStyle: CSSProperties = {
+  position: "absolute",
+  left: 0,
+  right: 18,
+  bottom: -4,
+  height: 1,
+  background: "rgba(0,196,154,0.4)",
+  transformOrigin: "left center"
+};
+
+const mapFadeLeftStyle: CSSProperties = {
+  position: "absolute",
+  left: 0,
+  top: 0,
+  bottom: 0,
+  width: 80,
+  background: "linear-gradient(to right, #080809 0%, rgba(8,8,9,0) 100%)",
+  pointerEvents: "none",
+  zIndex: 2
+};
+
+const mapFadeTopStyle: CSSProperties = {
+  position: "absolute",
+  top: 0,
+  left: 0,
+  right: 0,
+  height: 60,
+  background: "linear-gradient(to bottom, #080809 0%, rgba(8,8,9,0) 100%)",
+  pointerEvents: "none",
+  zIndex: 2
+};
+
+const mapFadeRightStyle: CSSProperties = {
+  position: "absolute",
+  right: 0,
+  top: 0,
+  bottom: 0,
+  width: 80,
+  background: "linear-gradient(to left, #080809 0%, rgba(8,8,9,0) 60%)",
+  pointerEvents: "none",
+  zIndex: 2
+};
+
+const mapFadeBottomStyle: CSSProperties = {
+  position: "absolute",
+  bottom: 0,
+  left: 0,
+  right: 0,
+  height: 80,
+  background: "linear-gradient(to top, #080809 0%, rgba(8,8,9,0) 100%)",
+  pointerEvents: "none",
   zIndex: 2
 };
 

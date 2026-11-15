@@ -47,16 +47,7 @@ export function ResilienceBootstrap({ children }: PropsWithChildren) {
       try {
         const snapshot = await getRideRoomSnapshot(lastActiveRoomId);
         if (snapshot) {
-          setRoomSession(
-            snapshot.room,
-            snapshot.members,
-            snapshot.riders,
-            snapshot.layers,
-            snapshot.messages,
-            snapshot.activeAlert,
-            snapshot.ridePlan,
-            snapshot.safety
-          );
+          setRoomSession(snapshot);
           markRoomSynced();
           setRecoveryState("restored", { lastRecoveryAt: new Date().toISOString(), lastRecoveryError: null });
           await recordDiagnosticEvent({

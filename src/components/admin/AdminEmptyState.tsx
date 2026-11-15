@@ -6,7 +6,7 @@ import { tokens } from "@/design/tokens";
 const palette = tokens.admin.color;
 const fonts = tokens.admin.font;
 
-export function EmptyState({
+export function AdminEmptyState({
   body,
   heading,
   icon,

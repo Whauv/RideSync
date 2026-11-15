@@ -7,9 +7,14 @@ interface IconButtonProps {
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
   onPress?: () => void;
   tone?: "default" | "accent" | "danger";
+  /**
+   * Screen-reader label for this icon-only control. Strongly recommended, since
+   * the glyph carries no text. Falls back to a humanized icon name.
+   */
+  accessibilityLabel?: string;
 }
 
-export function IconButton({ icon, onPress, tone = "default" }: IconButtonProps) {
+export function IconButton({ icon, onPress, tone = "default", accessibilityLabel }: IconButtonProps) {
   const theme = useTheme();
   const backgroundColor =
     tone === "accent" ? theme.colors.accentMuted : tone === "danger" ? theme.state.danger.fill : theme.colors.surfaceOverlay;
@@ -17,6 +22,8 @@ export function IconButton({ icon, onPress, tone = "default" }: IconButtonProps)
 
   return (
     <Pressable
+      accessibilityLabel={accessibilityLabel ?? icon.replace(/-/g, " ")}
+      accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,

@@ -12,6 +12,8 @@ import { useTheme } from "@/design/ThemeProvider";
 import { FuelAlert, RideAlertState, RideLayerMarker, RideMapMode, RideRoom, RiderPresence, SafetySnapshot } from "@/types/domain";
 import { VoiceParticipantState, VoiceSessionSnapshot } from "@/types/voice";
 
+import { createGeoProjector } from "./mapGeometry";
+
 interface LiveRideMapProps {
   room: RideRoom;
   riders: RiderPresence[];
@@ -55,21 +57,7 @@ function fuelAlertTone(alert?: FuelAlert) {
 }
 
 function projectPoints(riders: RiderPresence[], layers: RideLayerMarker[]) {
-  const points = [
-    ...riders.map((rider) => ({ id: rider.id, lat: rider.lat, lng: rider.lng })),
-    ...layers.map((layer) => ({ id: layer.id, lat: layer.lat, lng: layer.lng }))
-  ];
-  const lats = points.map((point) => point.lat);
-  const lngs = points.map((point) => point.lng);
-  const minLat = Math.min(...lats);
-  const maxLat = Math.max(...lats);
-  const minLng = Math.min(...lngs);
-  const maxLng = Math.max(...lngs);
-
-  return (lat: number, lng: number) => ({
-    left: 56 + ((lng - minLng) / Math.max(maxLng - minLng, 0.0001)) * 350,
-    top: 74 + ((maxLat - lat) / Math.max(maxLat - minLat, 0.0001)) * 350
-  });
+  return createGeoProjector([...riders, ...layers], { offsetLeft: 56, offsetTop: 74, width: 350, height: 350 });
 }
 
 export function LiveRideMap({

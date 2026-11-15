@@ -39,7 +39,7 @@ export default function SettingsScreen() {
     <Screen scroll>
       <AppHeader
         eyebrow="SETTINGS"
-        right={<IconButton icon="palette-outline" onPress={() => showToast({ title: "Theme system active", message: "Light, dark, and system themes are wired into the shell." })} />}
+        right={<IconButton accessibilityLabel="Theme information" icon="palette-outline" onPress={() => showToast({ title: "Theme system active", message: "Light, dark, and system themes are wired into the shell." })} />}
         subtitle="Appearance, provider readiness, and internal diagnostics stay out of the primary ride surface."
         title="System"
       />

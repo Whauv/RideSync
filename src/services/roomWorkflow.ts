@@ -1,12 +1,28 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Linking from "expo-linking";
 import { Share } from "react-native";
 
-import { getQuickPingDefinition, formatMessageTime, recordCoordinationAudit, sendCoordinationNotification } from "@/services/coordination";
+import { getQuickPingDefinition, recordCoordinationAudit, sendCoordinationNotification } from "@/services/coordination";
 import { recordDiagnosticEvent } from "@/services/diagnostics";
 import { trackEvent } from "@/services/analytics";
 import { captureError, finishTrace, startTrace } from "@/services/monitoring";
-import { applyLeaderDistances, buildCrashDetectionPlaceholder, buildSafetySnapshot } from "@/services/safety";
+import { buildCrashDetectionPlaceholder } from "@/services/safety";
+import { roomRepository } from "@/services/rooms";
+import { RoomWorkflowError } from "@/services/rooms/errors";
+import {
+  ROOM_BASE_LAT,
+  ROOM_BASE_LNG,
+  buildCode,
+  buildDefaultRidePlan,
+  buildId,
+  buildInviteLink,
+  buildMember,
+  buildRideLayers,
+  buildRidePresence,
+  buildSystemMessage,
+  buildUserMessage,
+  hydrateRoomSnapshot,
+  nowIso,
+  parseJoinValue
+} from "@/services/rooms/roomTransforms";
 import { AuthIdentity, RiderProfile } from "@/types/auth";
 import {
   CreateRoomInput,
@@ -19,283 +35,27 @@ import {
   RidePlanStop,
   RiderRsvpStatus,
   RideAlertState,
-  RideMessage,
-  RideLayerMarker,
   RideRoom,
   RideRoomSnapshot,
-  RiderPresence,
   RoomJoinPayload,
-  RoomMember,
-  RiderRole
+  RoomMember
 } from "@/types/domain";
 
-const ROOM_STORAGE_KEY = "ridesync-local-room-workflow";
-const ROOM_BASE_LAT = 39.7392;
-const ROOM_BASE_LNG = -104.9903;
-
-interface PersistedRooms {
-  rooms: RideRoomSnapshot[];
-}
-
-function nowIso() {
-  return new Date().toISOString();
-}
-
-function buildInviteLink(code: string) {
-  return Linking.createURL("/join", {
-    queryParams: {
-      code
-    }
-  });
-}
-
-function buildCode() {
-  return Math.random().toString(36).slice(2, 7).toUpperCase();
-}
-
-function buildId(prefix: string) {
-  return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-async function readStore(): Promise<PersistedRooms> {
-  const raw = await AsyncStorage.getItem(ROOM_STORAGE_KEY);
-  if (!raw) {
-    return { rooms: [] };
-  }
-
-  return JSON.parse(raw) as PersistedRooms;
-}
-
-async function writeStore(store: PersistedRooms) {
-  await AsyncStorage.setItem(ROOM_STORAGE_KEY, JSON.stringify(store));
-}
-
-function parseJoinValue(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return "";
-  }
-
-  const codeMatch = trimmed.match(/[?&]code=([A-Za-z0-9]+)/);
-  if (codeMatch?.[1]) {
-    return codeMatch[1].toUpperCase();
-  }
-
-  return trimmed.toUpperCase().replace(/[^A-Z0-9]/g, "");
-}
-
-function buildMember(
-  authIdentity: AuthIdentity,
-  profile: RiderProfile,
-  role: RiderRole,
-  approvalStatus: "approved" | "pending"
-): RoomMember {
-  const timestamp = nowIso();
-
-  return {
-    id: buildId("member"),
-    userId: authIdentity.uid,
-    riderName: profile.riderName,
-    avatarInitials: profile.avatarInitials,
-    bikeName: profile.bikeName,
-    role,
-    approvalStatus,
-    readiness: role === "leader" ? "ready" : "review",
-    rsvpStatus: role === "leader" ? "going" : "pending",
-    presenceState: "connected",
-    intercomState: "not_connected",
-    joinedAt: timestamp,
-    lastSeenAt: timestamp
-  };
-}
-
-function buildRidePresence(members: RoomMember[]): RiderPresence[] {
-  const approvedMembers = members.filter((member) => member.approvalStatus === "approved");
-  const timestamp = nowIso();
-
-  return applyLeaderDistances(
-    approvedMembers.map((member, index) => ({
-      id: member.id,
-      name: member.riderName,
-      role: member.role,
-      bike: member.bikeName,
-      speedMph: member.role === "leader" ? 66 : 62 + (index % 3) * 2,
-      headingDeg: 102 + index,
-      status: "rolling",
-      isTalking: member.role === "leader",
-      hasMusicSync: member.intercomState === "connected",
-      batteryPct: 80 - index * 7,
-      signalState: index === 0 ? "strong" : index === 1 ? "moderate" : "weak",
-      lastUpdatedAt: timestamp,
-      lat: ROOM_BASE_LAT + index * 0.004,
-      lng: ROOM_BASE_LNG + index * 0.006,
-      fuelRangeMiles: member.fuelRangeMiles ?? 110 - index * 12
-    }))
-  );
-}
-
-function buildRideLayers(room: RideRoom): RideLayerMarker[] {
-  return [
-    {
-      id: `${room.id}-regroup`,
-      type: "regroup",
-      title: "Regroup turnout",
-      subtitle: "Leader fallback rally point",
-      lat: ROOM_BASE_LAT + 0.011,
-      lng: ROOM_BASE_LNG + 0.014
-    },
-    {
-      id: `${room.id}-hazard`,
-      type: "hazard",
-      title: "Gravel wash",
-      subtitle: "Reduced traction reported",
-      lat: ROOM_BASE_LAT + 0.018,
-      lng: ROOM_BASE_LNG - 0.006
-    },
-    {
-      id: `${room.id}-fuel`,
-      type: "fuel",
-      title: "Fuel stop",
-      subtitle: "Next planned top-off",
-      lat: ROOM_BASE_LAT + 0.028,
-      lng: ROOM_BASE_LNG + 0.008
-    },
-    {
-      id: `${room.id}-emergency`,
-      type: "emergency",
-      title: "Emergency staging",
-      subtitle: "Visible to leader only until needed",
-      lat: ROOM_BASE_LAT - 0.008,
-      lng: ROOM_BASE_LNG + 0.02
-    }
-  ];
-}
-
-function buildDefaultRidePlan(room: RideRoom): RidePlan {
-  const scheduledFor = new Date(Date.now() + 1000 * 60 * 60 * 18).toISOString();
-
-  return {
-    id: buildId("plan"),
-    routeTitle: room.routeTitle ?? room.title,
-    scheduledFor,
-    meetupPoint: "Morrison Park-and-Ride",
-    notes: "Fuel topped off, rain layer packed, and intercom paired before departure.",
-    distanceMiles: 118,
-    etaMinutes: 210,
-    imports: [],
-    stops: [
-      {
-        id: buildId("stop"),
-        type: "fuel",
-        title: "Nederland fuel stop",
-        note: "Fast pumps and quick regroup lane.",
-        etaOffsetMinutes: 58
-      },
-      {
-        id: buildId("stop"),
-        type: "food",
-        title: "Canyon lunch window",
-        note: "Quick service and hydration reset.",
-        etaOffsetMinutes: 112
-      },
-      {
-        id: buildId("stop"),
-        type: "emergency_fallback",
-        title: "Front range fallback",
-        note: "Weather or mechanical bail-out point.",
-        etaOffsetMinutes: 146
-      }
-    ]
-  };
-}
-
-function buildSystemMessage(body: string, senderId: string, senderName: string): RideMessage {
-  const timestamp = nowIso();
-
-  return {
-    id: buildId("message"),
-    senderId,
-    senderName,
-    createdAt: timestamp,
-    sentAt: formatMessageTime(timestamp),
-    kind: "system",
-    body,
-    severity: "normal"
-  };
-}
-
-function buildUserMessage(
-  kind: RideMessage["kind"],
-  authIdentity: AuthIdentity,
-  profile: RiderProfile,
-  body: string,
-  options?: Pick<RideMessage, "pingType" | "severity" | "metadata">
-): RideMessage {
-  const timestamp = nowIso();
-
-  return {
-    id: buildId("message"),
-    senderId: authIdentity.uid,
-    senderName: profile.riderName,
-    createdAt: timestamp,
-    sentAt: formatMessageTime(timestamp),
-    kind,
-    body,
-    pingType: options?.pingType,
-    severity: options?.severity ?? "normal",
-    metadata: options?.metadata
-  };
-}
-
-function sortMembers(members: RoomMember[]) {
-  return [...members].sort((left, right) => {
-    if (left.role === "leader") return -1;
-    if (right.role === "leader") return 1;
-    if (left.approvalStatus !== right.approvalStatus) {
-      return left.approvalStatus === "pending" ? -1 : 1;
-    }
-
-    return left.riderName.localeCompare(right.riderName);
-  });
-}
-
-function hydrateRoomSnapshot(snapshot: RideRoomSnapshot): RideRoomSnapshot {
-  const normalized = {
-    ...snapshot,
-    room: {
-      ...snapshot.room,
-      riderCount: snapshot.members.filter((member) => member.approvalStatus === "approved").length
-    },
-    members: sortMembers(snapshot.members),
-    riders: applyLeaderDistances(snapshot.riders),
-    activeAlert: snapshot.activeAlert ?? null,
-    ridePlan: snapshot.ridePlan ?? buildDefaultRidePlan(snapshot.room),
-    safety: snapshot.safety ?? {
-      stragglers: [],
-      hazards: [],
-      fuelAlerts: [],
-      crashDetection: buildCrashDetectionPlaceholder(),
-      insights: {
-        averageSpeedMph: 0,
-        stopCount: 0,
-        distanceMiles: snapshot.ridePlan?.distanceMiles ?? 0,
-        eventLog: []
-      }
-    }
-  } satisfies RideRoomSnapshot;
-
-  return {
-    ...normalized,
-    safety: buildSafetySnapshot(normalized, normalized.safety)
-  };
-}
+/**
+ * Room workflow orchestration.
+ *
+ * This module sequences domain operations: analytics, tracing, auditing,
+ * notifications, and persistence. Storage is delegated to `roomRepository`
+ * (swappable local/Firestore backend) and all data shaping lives in
+ * `roomTransforms`. Public function signatures are intentionally stable so UI
+ * call sites never need to change when the backend does.
+ */
 
 export async function createRideRoom(input: CreateRoomInput, authIdentity: AuthIdentity, profile: RiderProfile) {
   const trace = startTrace("room_create");
   await trackEvent("room_create_started", {
     entry_point: "ride_tab"
   });
-  const store = await readStore();
   const code = buildCode();
   const leaderMember = buildMember(authIdentity, profile, "leader", "approved");
 
@@ -338,8 +98,7 @@ export async function createRideRoom(input: CreateRoomInput, authIdentity: AuthI
     }
   });
 
-  store.rooms = [snapshot, ...store.rooms.filter((item) => item.room.id !== snapshot.room.id)];
-  await writeStore(store);
+  await roomRepository.saveRoom(snapshot);
   await finishTrace(trace, { roomId: snapshot.room.id });
   await trackEvent("room_created", {
     voice_provider: snapshot.room.voiceProvider,
@@ -360,26 +119,24 @@ export async function joinRideRoom(payload: RoomJoinPayload, authIdentity: AuthI
       join_method: "invalid",
       error_code: "invalid_code"
     });
-    throw new Error("Enter a valid room code or invite link.");
+    throw new RoomWorkflowError("invalid_code", "Enter a valid room code or invite link.");
   }
 
-  const store = await readStore();
-  const targetIndex = store.rooms.findIndex((snapshot) => snapshot.room.code === code);
-  if (targetIndex < 0) {
+  const snapshot = await roomRepository.getRoomByCode(code);
+  if (!snapshot) {
     await trackEvent("room_join_failed", {
       join_method: "code",
       error_code: "room_not_found"
     });
-    throw new Error("No room matches that code.");
+    throw new RoomWorkflowError("room_not_found", "No room matches that code.");
   }
 
-  const snapshot = store.rooms[targetIndex];
   if (snapshot.room.locked) {
     await trackEvent("room_join_failed", {
       join_method: "code",
       error_code: "room_locked"
     });
-    throw new Error("This room is locked.");
+    throw new RoomWorkflowError("room_locked", "This room is locked.");
   }
 
   const currentMembers = snapshot.members.filter((member) => member.approvalStatus !== "pending" || member.userId !== authIdentity.uid);
@@ -388,7 +145,7 @@ export async function joinRideRoom(payload: RoomJoinPayload, authIdentity: AuthI
       join_method: "code",
       error_code: "room_full"
     });
-    throw new Error("This room is full.");
+    throw new RoomWorkflowError("room_full", "This room is full.");
   }
 
   const existingMember = snapshot.members.find((member) => member.userId === authIdentity.uid);
@@ -434,8 +191,7 @@ export async function joinRideRoom(payload: RoomJoinPayload, authIdentity: AuthI
     safety: snapshot.safety
   });
 
-  store.rooms[targetIndex] = nextSnapshot;
-  await writeStore(store);
+  await roomRepository.saveRoom(nextSnapshot);
   const durationMs = await finishTrace(trace, { roomId: nextSnapshot.room.id });
   await trackEvent("room_join_succeeded", {
     join_method: payload.value.includes("http") || payload.value.includes("://") ? "link" : "code",
@@ -446,14 +202,13 @@ export async function joinRideRoom(payload: RoomJoinPayload, authIdentity: AuthI
 }
 
 export async function getRideRoomSnapshot(roomId: string) {
-  const store = await readStore();
-  const snapshot = store.rooms.find((item) => item.room.id === roomId);
+  const snapshot = await roomRepository.getRoom(roomId);
   return snapshot ? hydrateRoomSnapshot(snapshot) : null;
 }
 
 export async function listRideRoomSnapshots() {
-  const store = await readStore();
-  return store.rooms
+  const snapshots = await roomRepository.listRooms();
+  return snapshots
     .map((snapshot) => hydrateRoomSnapshot(snapshot))
     .sort((left, right) => Date.parse(right.room.createdAt) - Date.parse(left.room.createdAt));
 }
@@ -551,7 +306,7 @@ export async function updateRiderFuelRange(roomId: string, userId: string, fuelR
 export async function sendRoomMessage(roomId: string, authIdentity: AuthIdentity, profile: RiderProfile, body: string) {
   const trimmed = body.trim();
   if (!trimmed) {
-    throw new Error("Add a message before sending.");
+    throw new RoomWorkflowError("empty_message", "Add a message before sending.");
   }
 
   return mutateRoom(roomId, (snapshot) => ({
@@ -1042,16 +797,15 @@ export async function clearActiveRideRoom(roomId: string) {
 }
 
 async function mutateRoom(roomId: string, updater: (snapshot: RideRoomSnapshot) => RideRoomSnapshot) {
-  const store = await readStore();
-  const targetIndex = store.rooms.findIndex((snapshot) => snapshot.room.id === roomId);
-  if (targetIndex < 0) {
-    await captureError("Room mutation failed", new Error("Room not found."), { roomId });
-    throw new Error("Room not found.");
+  const current = await roomRepository.getRoom(roomId);
+  if (!current) {
+    const error = new RoomWorkflowError("room_not_found", "Room not found.");
+    await captureError("Room mutation failed", error, { roomId });
+    throw error;
   }
 
-  const updated = hydrateRoomSnapshot(updater(store.rooms[targetIndex]));
-  store.rooms[targetIndex] = updated;
-  await writeStore(store);
+  const updated = hydrateRoomSnapshot(updater(current));
+  await roomRepository.saveRoom(updated);
   return updated;
 }
 
@@ -1064,7 +818,7 @@ export async function shareRideRoomInvite(room: RideRoom) {
 
 export async function shareRideBrief(room: RideRoom, ridePlan: RidePlan | null, members: RoomMember[]) {
   if (!ridePlan) {
-    throw new Error("Ride plan not available.");
+    throw new RoomWorkflowError("plan_unavailable", "Ride plan not available.");
   }
 
   const confirmed = members.filter((member) => member.rsvpStatus === "going").length;

@@ -19,6 +19,8 @@ export function ListRow({ title, subtitle, leading, trailing, onPress, chevron =
 
   return (
     <Pressable
+      accessibilityLabel={onPress ? [title, subtitle].filter(Boolean).join(". ") : undefined}
+      accessibilityRole={onPress ? "button" : undefined}
       onPress={onPress}
       style={({ pressed }) => [
         styles.row,

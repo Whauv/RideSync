@@ -67,8 +67,11 @@ export function ToastProvider({ children }: PropsWithChildren) {
       {children}
       {toast ? (
         <SafeAreaView pointerEvents="box-none" style={styles.overlay}>
-          <Animated.View style={[styles.toastWrap, { transform: [{ translateY }] }]}>
+          <Animated.View accessibilityLiveRegion="polite" accessibilityRole="alert" style={[styles.toastWrap, { transform: [{ translateY }] }]}>
             <Pressable
+              accessibilityHint="Dismisses this notification"
+              accessibilityLabel={toast.message ? `${toast.title}. ${toast.message}` : toast.title}
+              accessibilityRole="button"
               onPress={hideToast}
               style={[
                 styles.toast,

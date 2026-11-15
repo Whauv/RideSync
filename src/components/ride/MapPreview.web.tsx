@@ -6,27 +6,15 @@ import { Chip } from "@/components/primitives/Chip";
 import { useTheme } from "@/design/ThemeProvider";
 import { RiderPresence } from "@/types/domain";
 
+import { createGeoProjector } from "./mapGeometry";
+
 interface MapPreviewProps {
   riders: RiderPresence[];
 }
 
-function projectPoints(riders: RiderPresence[]) {
-  const lats = riders.map((rider) => rider.lat);
-  const lngs = riders.map((rider) => rider.lng);
-  const minLat = Math.min(...lats);
-  const maxLat = Math.max(...lats);
-  const minLng = Math.min(...lngs);
-  const maxLng = Math.max(...lngs);
-
-  return (lat: number, lng: number) => ({
-    left: 48 + ((lng - minLng) / Math.max(maxLng - minLng, 0.0001)) * 250,
-    top: 56 + ((maxLat - lat) / Math.max(maxLat - minLat, 0.0001)) * 180
-  });
-}
-
 export function MapPreview({ riders }: MapPreviewProps) {
   const theme = useTheme();
-  const project = projectPoints(riders);
+  const project = createGeoProjector(riders, { offsetLeft: 48, offsetTop: 56, width: 250, height: 180 });
 
   return (
     <View style={[styles.shell, { backgroundColor: theme.colors.canvas, borderColor: theme.colors.lineSubtle }]}>
