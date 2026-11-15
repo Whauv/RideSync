@@ -61,7 +61,13 @@ export function SOSModal({ visible, onCancel, onConfirm }: SOSModalProps) {
         </AppText>
       </Surface>
 
-      <Animated.View style={[styles.countdownBlock, { transform: [{ scale }] }]}>
+      <Animated.View
+        accessible
+        accessibilityLiveRegion="assertive"
+        accessibilityRole="alert"
+        accessibilityLabel={`${countdown} seconds until emergency escalation`}
+        style={[styles.countdownBlock, { transform: [{ scale }] }]}
+      >
         <AppText variant="metric">{countdown}</AppText>
         <AppText tone="secondary">Seconds until escalation</AppText>
       </Animated.View>
