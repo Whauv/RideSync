@@ -13,6 +13,8 @@ interface ButtonProps {
   variant?: "primary" | "secondary" | "ghost" | "danger";
   icon?: keyof typeof MaterialCommunityIcons.glyphMap;
   trailing?: ReactNode;
+  /** Overrides the screen-reader label. Defaults to the visible `label`. */
+  accessibilityLabel?: string;
 }
 
 export function Button({
@@ -22,7 +24,8 @@ export function Button({
   loading,
   variant = "primary",
   icon,
-  trailing
+  trailing,
+  accessibilityLabel
 }: ButtonProps) {
   const theme = useTheme();
   const palette =
@@ -52,6 +55,9 @@ export function Button({
 
   return (
     <Pressable
+      accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: Boolean(disabled || loading), busy: Boolean(loading) }}
       disabled={disabled || loading}
       onPress={onPress}
       style={({ pressed }) => [

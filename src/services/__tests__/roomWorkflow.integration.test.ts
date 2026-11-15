@@ -40,6 +40,7 @@ import {
   startRideRoom,
   triggerSosAlert
 } from "@/services/roomWorkflow";
+import { RoomWorkflowError } from "@/services/rooms/errors";
 
 const leaderIdentity = {
   uid: "leader-user",
@@ -130,5 +131,16 @@ describe("room workflow integration", () => {
     expect(rolling.riders.length).toBeGreaterThan(0);
     expect(sos.activeAlert?.kind).toBe("sos");
     expect(sos.messages[0]?.kind).toBe("sos");
+  });
+
+  test("raises typed RoomWorkflowError codes for bad joins", async () => {
+    await expect(joinRideRoom({ value: "   " }, riderIdentity, riderProfile)).rejects.toMatchObject({
+      name: "RoomWorkflowError",
+      code: "invalid_code"
+    });
+
+    const failure = await joinRideRoom({ value: "ZZZZZ" }, riderIdentity, riderProfile).catch((error) => error);
+    expect(failure).toBeInstanceOf(RoomWorkflowError);
+    expect(failure.code).toBe("room_not_found");
   });
 });

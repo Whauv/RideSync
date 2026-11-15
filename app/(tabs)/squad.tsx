@@ -63,16 +63,7 @@ export default function SquadScreen() {
 
   async function syncSnapshot(promise: Promise<RideRoomSnapshot>) {
     const snapshot = await promise;
-    setRoomSession(
-      snapshot.room,
-      snapshot.members,
-      snapshot.riders,
-      snapshot.layers,
-      snapshot.messages,
-      snapshot.activeAlert,
-      snapshot.ridePlan,
-      snapshot.safety
-    );
+    setRoomSession(snapshot);
   }
 
   async function handleReportHazard() {
@@ -137,16 +128,7 @@ export default function SquadScreen() {
     try {
       const snapshot = await getRideRoomSnapshot(roomId);
       if (snapshot) {
-        setRoomSession(
-          snapshot.room,
-          snapshot.members,
-          snapshot.riders,
-          snapshot.layers,
-          snapshot.messages,
-          snapshot.activeAlert,
-          snapshot.ridePlan,
-          snapshot.safety
-        );
+        setRoomSession(snapshot);
         await hapticSoftImpact();
       }
     } finally {

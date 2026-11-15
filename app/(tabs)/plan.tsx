@@ -94,16 +94,7 @@ export default function PlanScreen() {
 
   async function applySnapshot(action: Promise<Awaited<ReturnType<typeof updateRidePlan>>>) {
     const snapshot = await action;
-    setRoomSession(
-      snapshot.room,
-      snapshot.members,
-      snapshot.riders,
-      snapshot.layers,
-      snapshot.messages,
-      snapshot.activeAlert,
-      snapshot.ridePlan,
-      snapshot.safety
-    );
+    setRoomSession(snapshot);
   }
 
   async function handleSavePlan() {
@@ -166,16 +157,7 @@ export default function PlanScreen() {
 
   async function handleRsvpChange(value: RiderRsvpStatus) {
     const snapshot = await updateRoomMemberRsvp(room.id, identity.uid, value);
-    setRoomSession(
-      snapshot.room,
-      snapshot.members,
-      snapshot.riders,
-      snapshot.layers,
-      snapshot.messages,
-      snapshot.activeAlert,
-      snapshot.ridePlan,
-      snapshot.safety
-    );
+    setRoomSession(snapshot);
     await hapticSoftImpact();
   }
 
@@ -189,16 +171,7 @@ export default function PlanScreen() {
     try {
       const snapshot = await getRideRoomSnapshot(room.id);
       if (snapshot) {
-        setRoomSession(
-          snapshot.room,
-          snapshot.members,
-          snapshot.riders,
-          snapshot.layers,
-          snapshot.messages,
-          snapshot.activeAlert,
-          snapshot.ridePlan,
-          snapshot.safety
-        );
+        setRoomSession(snapshot);
         setRouteTitle(snapshot.ridePlan?.routeTitle ?? "");
         setScheduledFor(snapshot.ridePlan?.scheduledFor ?? "");
         setMeetupPoint(snapshot.ridePlan?.meetupPoint ?? "");

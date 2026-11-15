@@ -1,9 +1,11 @@
 import type { CSSProperties, PropsWithChildren } from "react";
 import { motion } from "framer-motion";
 
-type Direction = "up" | "down" | "left" | "right" | "fade";
+type Direction = "up" | "down" | "left" | "right" | "fade" | "scale";
 
-const offsetForDirection = (direction: Direction, distance: number) => {
+const ease = [0.16, 1, 0.3, 1] as const;
+
+function initialOffset(direction: Direction, distance: number) {
   switch (direction) {
     case "down":
       return { y: -distance };
@@ -11,13 +13,15 @@ const offsetForDirection = (direction: Direction, distance: number) => {
       return { x: distance };
     case "right":
       return { x: -distance };
+    case "scale":
+      return { scale: 0.98 };
     case "fade":
       return {};
     case "up":
     default:
       return { y: distance };
   }
-};
+}
 
 export function AnimateIn({
   children,
@@ -25,31 +29,30 @@ export function AnimateIn({
   delay = 0,
   duration = 0.5,
   distance = 20,
+  once = true,
   style
 }: PropsWithChildren<{
   direction?: Direction;
   delay?: number;
   duration?: number;
   distance?: number;
+  once?: boolean;
   style?: CSSProperties;
 }>) {
   return (
     <motion.div
       initial={{
         opacity: 0,
-        ...offsetForDirection(direction, distance)
+        ...initialOffset(direction, distance)
       }}
       style={style}
-      transition={{
-        duration,
-        delay,
-        ease: [0.22, 1, 0.36, 1]
-      }}
-      viewport={{ once: true, margin: "-80px" }}
+      transition={{ duration, delay, ease }}
+      viewport={{ once, margin: "-80px" }}
       whileInView={{
         opacity: 1,
         x: 0,
-        y: 0
+        y: 0,
+        scale: 1
       }}
     >
       {children}

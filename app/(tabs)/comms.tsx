@@ -74,16 +74,7 @@ export default function CommsScreen() {
     action: ReturnType<typeof sendRoomMessage> | ReturnType<typeof sendQuickPing> | ReturnType<typeof triggerSosAlert> | ReturnType<typeof resolveActiveAlert>
   ) {
     const snapshot = await action;
-    setRoomSession(
-      snapshot.room,
-      snapshot.members,
-      snapshot.riders,
-      snapshot.layers,
-      snapshot.messages,
-      snapshot.activeAlert,
-      snapshot.ridePlan,
-      snapshot.safety
-    );
+    setRoomSession(snapshot);
   }
 
   async function handleSend() {
@@ -128,16 +119,7 @@ export default function CommsScreen() {
     try {
       const snapshot = await getRideRoomSnapshot(room.id);
       if (snapshot) {
-        setRoomSession(
-          snapshot.room,
-          snapshot.members,
-          snapshot.riders,
-          snapshot.layers,
-          snapshot.messages,
-          snapshot.activeAlert,
-          snapshot.ridePlan,
-          snapshot.safety
-        );
+        setRoomSession(snapshot);
         await hapticSoftImpact();
       }
     } finally {
