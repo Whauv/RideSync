@@ -32,7 +32,8 @@ export function ResilienceBanner({
   }
 
   return (
-    <Surface raised style={styles.card}>
+    <View accessibilityLiveRegion="polite" accessibilityRole="alert">
+      <Surface raised style={styles.card}>
       <View style={styles.header}>
         <View style={styles.copy}>
           <AppText variant="title3">{isOffline ? "Connection lost" : isUnstable ? "Weak connection" : "Recovery guardrails active"}</AppText>
@@ -65,7 +66,8 @@ export function ResilienceBanner({
           ? `Last stable room sync ${new Date(reliability.lastRoomSyncAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`
           : "No stable room sync recorded yet."}
       </AppText>
-    </Surface>
+      </Surface>
+    </View>
   );
 }
 
