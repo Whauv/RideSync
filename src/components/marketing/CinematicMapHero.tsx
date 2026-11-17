@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { animate, svg } from "animejs";
 
 import { tokens } from "@/design/tokens";
 
@@ -244,6 +245,7 @@ function RiderDot({
 export function CinematicMapHero({ className }: { className?: string }) {
   const [driftFrame, setDriftFrame] = useState(0);
   const [isDesktop, setIsDesktop] = useState(() => (typeof window === "undefined" ? true : window.innerWidth >= 768));
+  const routeRef = useRef<SVGPathElement | null>(null);
 
   useEffect(() => {
     const handleResize = () => setIsDesktop(window.innerWidth >= 768);
@@ -261,6 +263,30 @@ export function CinematicMapHero({ className }: { className?: string }) {
 
     return () => window.clearInterval(timer);
   }, []);
+
+  // Spike: anime.js v4 SVG line-drawing for the leader route, replacing the
+  // framer-motion pathLength draw. `opacity` starts at 0 and is flipped on just
+  // before createDrawable sets the dash, which avoids a one-frame flash of the
+  // fully-drawn path.
+  useEffect(() => {
+    const element = routeRef.current;
+    if (!isDesktop || !element) {
+      return;
+    }
+
+    element.style.opacity = "1";
+    const [drawable] = svg.createDrawable(element);
+    const animation = animate(drawable, {
+      draw: ["0 0", "0 1"],
+      ease: "inOutQuad",
+      duration: 2200,
+      delay: 600
+    });
+
+    return () => {
+      animation.pause();
+    };
+  }, [isDesktop]);
 
   const riderOffsets = useMemo(() => driftFrames[driftFrame], [driftFrame]);
 
@@ -303,16 +329,15 @@ export function CinematicMapHero({ className }: { className?: string }) {
         <path d={routePath} fill="none" stroke="rgba(255,255,255,0.04)" strokeLinecap="round" strokeWidth="28" />
         <path d={routePath} fill="none" stroke="rgba(255,255,255,0.07)" strokeLinecap="round" strokeWidth="18" />
         <path d={routePath} fill="none" filter="url(#route-glow)" stroke="rgba(0,196,154,0.12)" strokeLinecap="round" strokeWidth="8" />
-        <motion.path
-          animate={{ pathLength: 1 }}
+        <path
+          ref={routeRef}
           d={routePath}
           fill="none"
-          initial={{ pathLength: 0 }}
           stroke="#00C49A"
           strokeLinecap="round"
           strokeOpacity="0.7"
           strokeWidth="2.5"
-          transition={{ duration: 2.2, delay: 0.6, ease: "easeInOut" }}
+          style={{ opacity: 0 }}
         />
 
         {riders.map((rider, index) => (
