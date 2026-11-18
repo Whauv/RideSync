@@ -8,6 +8,7 @@ import { AdminConsoleHeader } from "@/components/admin/AdminConsoleHeader";
 import { IncidentStatusMeta, RoomStatusMeta } from "@/components/admin/AdminConsoleIndicators";
 import { AbuseRow, IncidentRow, RoomRow } from "@/components/admin/AdminConsoleRows";
 import { LogRowsSkeleton, RoomRowsSkeleton } from "@/components/admin/AdminConsoleSkeletons";
+import { DiagnosticsChart } from "@/components/admin/DiagnosticsChart";
 import { formatTime } from "@/components/admin/adminConsoleFormatters";
 import {
   contentGridStyle,
@@ -224,6 +225,7 @@ export default function AdminWebScreen() {
               subline="Recovery, voice, notification health."
               title="Latest diagnostics"
             >
+              {!loading && diagnostics.length > 0 ? <DiagnosticsChart diagnostics={diagnostics} /> : null}
               <div className="ridesync-admin-scroll" style={logListStyle}>
                 {loading ? (
                   <LogRowsSkeleton />
